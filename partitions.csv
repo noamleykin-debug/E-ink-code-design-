@@ -1,0 +1,17 @@
+# ESP32-S3 16MB flash partition table
+# 3MB App0 (OTA_0) / 3MB App1 (OTA_1) / ~9.9MB LittleFS gallery + small coredump
+#
+# Offsets/sizes in hex. Total flash = 0x1000000 (16 MB).
+# The first 0x9000 is reserved for 2nd-stage bootloader + this partition table.
+#
+# NOTE: the data partition is named/subtyped "spiffs" so that the default
+#       LittleFS.begin() (partition label "spiffs") mounts it without extra args.
+#       We format it as LittleFS via board_build.filesystem = littlefs.
+#
+# Name,     Type, SubType,  Offset,    Size,      Flags
+nvs,        data, nvs,      0x9000,    0x5000,
+otadata,    data, ota,      0xe000,    0x2000,
+app0,       app,  ota_0,    0x10000,   0x300000,
+app1,       app,  ota_1,    0x310000,  0x300000,
+spiffs,     data, spiffs,   0x610000,  0x9E0000,
+coredump,   data, coredump, 0xFF0000,  0x10000,
