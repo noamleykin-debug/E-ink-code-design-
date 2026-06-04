@@ -1,0 +1,42 @@
+name: PlatformIO Build
+
+# Compiles the firmware so every PR gets a real "does it build?" signal.
+# NOTE: the full firmware links only once main.cpp and all module sources are
+# integrated on `main` (see docs/WORKFLOW.md, merge order). Module PRs in
+# isolation may not link until integrated — the authoritative green build is on
+# `main` and on the final integration PR.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Build firmware
+        run: pio run
