@@ -1,0 +1,17 @@
+# PlatformIO build artifacts & caches
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Python (PlatformIO is a Python tool)
+__pycache__/
+*.pyc
