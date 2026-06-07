@@ -8,7 +8,19 @@ namespace Display {
 
 // Instantiate the display driver.
 // Using the specified class and hardware constants from config.h.
-static GxEPD2_7C<GxEPD2_730c_GDEP073E01, MAX_DISPLAY_BUFFER_SIZE> display(
+//
+// GxEPD2_7C's second template parameter is the per-page buffer HEIGHT (a
+// uint16_t), NOT a byte size. Feeding MAX_DISPLAY_BUFFER_SIZE (65536) directly
+// overflows uint16_t and fails to compile. Derive a valid page height from the
+// byte budget instead: bytes / 2 (4bpp -> 2px per byte across WIDTH) bounded by
+// the panel height. This keeps the internal page buffer small (~32 KB) and
+// drives GxEPD2 page-by-page, per Golden Rule #3 (no full framebuffer in RAM).
+#define MAX_HEIGHT_7C(EPD) \
+    ((EPD::HEIGHT) <= (MAX_DISPLAY_BUFFER_SIZE) / 2 / ((EPD::WIDTH) / 2) \
+        ? (EPD::HEIGHT) \
+        : (MAX_DISPLAY_BUFFER_SIZE) / 2 / ((EPD::WIDTH) / 2))
+
+static GxEPD2_7C<GxEPD2_730c_GDEP073E01, MAX_HEIGHT_7C(GxEPD2_730c_GDEP073E01)> display(
     GxEPD2_730c_GDEP073E01(EPD_CS_PIN, EPD_DC_PIN, EPD_RST_PIN, EPD_BUSY_PIN)
 );
 
