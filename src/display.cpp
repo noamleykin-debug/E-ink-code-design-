@@ -1,8 +1,10 @@
 #include "display.h"
 #include "config.h"
 #include <SPI.h>
+// GxEPD2_7C.h pulls in all 7-color panel drivers (incl. GDEP073E01) from its
+// epd7c/ subfolder. Do NOT include <GxEPD2_730c_GDEP073E01.h> directly — that
+// header is not on the root include path and the build fails to find it.
 #include <GxEPD2_7C.h>
-#include <GxEPD2_730c_GDEP073E01.h>
 
 namespace Display {
 
