@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>E-Ink Frame — Upload</title>
+<!--
+  Captive-portal frontend for the 7.3" 6-color E-Ink photo frame.
+
+  Architecture: the frame's firmware does the dithering. This page only has to
+  deliver a JPEG at the panel's NATIVE resolution (800x480). So we crop+resize
+  every selected photo to exactly 800x480 in the browser (cover fit) and POST
+  the resulting JPEG to /api/upload, where the firmware stores it under /img and
+  registers it in playlist.json.
+
+  Everything is inlined (no CDNs): the captive portal has no internet access.
+-->
+<style>
+  :root{
+    --bg:#f4f4f2; --card:#fff; --ink:#1a1a1a; --muted:#6b6b6b;
+    --line:#d9d9d6; --accent:#1769ff; --ok:#1f9d55; --err:#d23b3b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink);
+    padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 24px);
+    max-width:560px; margin:0 auto;
+  }
+  header{padding:24px 0 12px}
+  h1{font-size:1.35rem; margin:0 0 4px}
+  .sub{color:var(--muted); font-size:.9rem}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:18px; margin-top:16px;
+  }
+  .drop{
+    border:2px dashed var(--line); border-radius:12px; padding:28px 16px;
+    text-align:center; color:var(--muted); cursor:pointer; transition:.15s;
+  }
+  .drop.drag{border-color:var(--accent); color:var(--ink); background:#eef4ff}
+  .drop strong{color:var(--ink)}
+  input[type=file]{display:none}
+  .btn{
+    display:inline-block; width:100%; border:0; border-radius:12px;
+    background:var(--accent); color:#fff; font-size:1rem; font-weight:600;
+    padding:14px; margin-top:14px; cursor:pointer;
+  }
+  .btn[disabled]{opacity:.5; cursor:default}
+  .queue{list-style:none; margin:14px 0 0; padding:0}
+  .item{display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line)}
+  .item:first-child{border-top:0}
+  .thumb{width:80px; height:48px; border-radius:6px; object-fit:cover; background:#eee; flex:0 0 auto; border:1px solid var(--line)}
+  .meta{flex:1 1 auto; min-width:0}
+  .name{font-size:.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .bar{height:6px; background:#eee; border-radius:4px; overflow:hidden; margin-top:6px}
+  .bar > i{display:block; height:100%; width:0; background:var(--accent); transition:width .2s}
+  .status{font-size:.78rem; color:var(--muted); margin-top:4px}
+  .status.ok{color:var(--ok)} .status.err{color:var(--err)}
+  footer{color:var(--muted); font-size:.78rem; text-align:center; margin-top:22px}
+</style>
+</head>
+<body>
+<header>
+  <h1>E-Ink Photo Frame</h1>
+  <div class="sub">Add photos — they're auto-fitted to 800×480 and sent to the frame.</div>
+</header>
+
+<div class="card">
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="image/*" multiple>
+    <div>📷 <strong>Tap to choose photos</strong><br>or drag &amp; drop here</div>
+  </label>
+  <ul class="queue" id="queue"></ul>
+  <button class="btn" id="send" disabled>Send to frame</button>
+</div>
+
+<footer>
+  Connected to the frame's Wi-Fi. Keep this page open until uploads finish,
+  then tap the frame to show the next photo.
+</footer>
+
+<script>
+"use strict";
+const W = 800, H = 480, JPEG_QUALITY = 0.9;
+const fileInput = document.getElementById('file');
+const drop = document.getElementById('drop');
+const queueEl = document.getElementById('queue');
+const sendBtn = document.getElementById('send');
+
+// Pending items: { blob, url, name, row, barFill, statusEl, done }
+let items = [];
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// Crop+resize an image File to exactly 800x480 (cover fit) -> JPEG Blob.
+function processFile(file){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+      // cover fit: scale so the image fills 800x480, center-crop the overflow
+      const scale = Math.max(W / img.width, H / img.height);
+      const dw = img.width * scale, dh = img.height * scale;
+      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('encode failed')), 'image/jpeg', JPEG_QUALITY);
+    };
+    img.onerror = () => reject(new Error('not an image'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function addFiles(fileList){
+  for (const f of fileList){
+    if (!f.type.startsWith('image/')) continue;
+    const id = uid();
+    let blob;
+    try { blob = await processFile(f); }
+    catch(e){ continue; }
+
+    const row = document.createElement('li');
+    row.className = 'item';
+    row.innerHTML =
+      '<img class="thumb">' +
+      '<div class="meta">' +
+        '<div class="name"></div>' +
+        '<div class="bar"><i></i></div>' +
+        '<div class="status">ready</div>' +
+      '</div>';
+    const thumb = row.querySelector('.thumb');
+    thumb.src = URL.createObjectURL(blob);
+    row.querySelector('.name').textContent = f.name || (id + '.jpg');
+    queueEl.appendChild(row);
+
+    items.push({
+      blob, name: 'img_' + id + '.jpg',
+      barFill: row.querySelector('.bar > i'),
+      statusEl: row.querySelector('.status'),
+      done: false
+    });
+  }
+  sendBtn.disabled = items.every(i => i.done) || items.length === 0;
+}
+
+function uploadOne(item){
+  return new Promise((resolve) => {
+    const fd = new FormData();
+    fd.append('file', item.blob, item.name);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable){
+        const pct = Math.round(e.loaded / e.total * 100);
+        item.barFill.style.width = pct + '%';
+        item.statusEl.textContent = 'uploading ' + pct + '%';
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300){
+        item.barFill.style.width = '100%';
+        item.statusEl.textContent = 'on the frame ✓';
+        item.statusEl.className = 'status ok';
+        item.done = true;
+      } else {
+        item.statusEl.textContent = 'failed (HTTP ' + xhr.status + ')';
+        item.statusEl.className = 'status err';
+      }
+      resolve();
+    };
+    xhr.onerror = () => {
+      item.statusEl.textContent = 'failed (network)';
+      item.statusEl.className = 'status err';
+      resolve();
+    };
+    xhr.send(fd);
+  });
+}
+
+async function sendAll(){
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Sending…';
+  // Sequential: the frame writes to flash one chunk at a time; don't flood it.
+  for (const item of items){
+    if (!item.done) await uploadOne(item);
+  }
+  sendBtn.textContent = 'Send to frame';
+  sendBtn.disabled = items.every(i => i.done);
+}
+
+fileInput.addEventListener('change', () => addFiles(fileInput.files));
+sendBtn.addEventListener('click', sendAll);
+
+['dragenter','dragover'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+drop.addEventListener('drop', e => { if (e.dataTransfer) addFiles(e.dataTransfer.files); });
+</script>
+</body>
+</html>
