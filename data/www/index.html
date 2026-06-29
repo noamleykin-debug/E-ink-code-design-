@@ -58,6 +58,9 @@
   .bar > i{display:block; height:100%; width:0; background:var(--accent); transition:width .2s}
   .status{font-size:.78rem; color:var(--muted); margin-top:4px}
   .status.ok{color:var(--ok)} .status.err{color:var(--err)}
+  .summary{margin-top:12px; text-align:center; font-weight:600; font-size:.95rem; color:var(--muted)}
+  .summary.ok{color:var(--ok)} .summary.err{color:var(--err)}
+  .btn.ghost{background:#fff; color:var(--accent); border:1px solid var(--accent)}
   footer{color:var(--muted); font-size:.78rem; text-align:center; margin-top:22px}
 </style>
 </head>
@@ -74,6 +77,8 @@
   </label>
   <ul class="queue" id="queue"></ul>
   <button class="btn" id="send" disabled>Send to frame</button>
+  <div class="summary" id="summary" hidden></div>
+  <button class="btn ghost" id="show" hidden>Show newest on frame</button>
 </div>
 
 <footer>
@@ -88,14 +93,56 @@ const fileInput = document.getElementById('file');
 const drop = document.getElementById('drop');
 const queueEl = document.getElementById('queue');
 const sendBtn = document.getElementById('send');
+const summaryEl = document.getElementById('summary');
+const showBtn = document.getElementById('show');
 
-// Pending items: { blob, url, name, row, barFill, statusEl, done }
+// Pending items: { blob, name, barFill, statusEl, done, failed }
 let items = [];
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
-// Crop+resize an image File to exactly 800x480 (cover fit) -> JPEG Blob.
+// Crop+resize a photo to exactly 800x480 (cover fit) -> JPEG Blob.
+// Prefer createImageBitmap: it decodes/downscales without ever painting the
+// full-resolution image onto a canvas, and we close() the big bitmap right away.
+// The old Image+canvas path makes iOS Safari run out of RAM on ~12MP gallery
+// photos and silently kill the page (and the upload), while small screenshots
+// survive. We fall back to that legacy path only if createImageBitmap is missing.
 function processFile(file){
+  if (typeof createImageBitmap === 'function'){
+    return processWithBitmap(file).catch(() => processWithImage(file));
+  }
+  return processWithImage(file);
+}
+
+async function processWithBitmap(file){
+  // First decode just to read the source dimensions. ImageBitmap is GPU-backed
+  // and freed immediately via close(), so peak memory stays low.
+  const src = await createImageBitmap(file);
+  const scale = Math.max(W / src.width, H / src.height);
+  // Source rectangle that, scaled by `scale`, exactly covers 800x480 (center crop).
+  const sw = Math.min(src.width,  Math.round(W / scale));
+  const sh = Math.min(src.height, Math.round(H / scale));
+  const sx = Math.max(0, Math.round((src.width  - sw) / 2));
+  const sy = Math.max(0, Math.round((src.height - sh) / 2));
+  // Second decode: crop to that rect AND downscale toward 800x480 in one step.
+  const fit = await createImageBitmap(src, sx, sy, sw, sh, {
+    resizeWidth: W, resizeHeight: H, resizeQuality: 'high'
+  });
+  src.close(); // release the full-resolution bitmap now
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  // Draw with explicit 800x480 dest so output is correct even on browsers that
+  // ignore the resize options above.
+  ctx.drawImage(fit, 0, 0, W, H);
+  fit.close();
+  return await new Promise((resolve, reject) =>
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error('encode failed')),
+                  'image/jpeg', JPEG_QUALITY));
+}
+
+function processWithImage(file){
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -140,7 +187,7 @@ async function addFiles(fileList){
       blob, name: 'img_' + id + '.jpg',
       barFill: row.querySelector('.bar > i'),
       statusEl: row.querySelector('.status'),
-      done: false
+      done: false, failed: false
     });
   }
   sendBtn.disabled = items.every(i => i.done) || items.length === 0;
@@ -164,16 +211,18 @@ function uploadOne(item){
         item.barFill.style.width = '100%';
         item.statusEl.textContent = 'on the frame ✓';
         item.statusEl.className = 'status ok';
-        item.done = true;
+        item.done = true; item.failed = false;
       } else {
         item.statusEl.textContent = 'failed (HTTP ' + xhr.status + ')';
         item.statusEl.className = 'status err';
+        item.failed = true;
       }
       resolve();
     };
     xhr.onerror = () => {
       item.statusEl.textContent = 'failed (network)';
       item.statusEl.className = 'status err';
+      item.failed = true;
       resolve();
     };
     xhr.send(fd);
@@ -186,10 +235,35 @@ async function sendAll(){
   // Sequential: the frame writes to flash one chunk at a time; don't flood it.
   for (const item of items){
     if (!item.done) await uploadOne(item);
+    refreshSummary();
   }
   sendBtn.textContent = 'Send to frame';
   sendBtn.disabled = items.every(i => i.done);
+  refreshSummary();
 }
+
+// Unmistakable overall result + reveal the optional "Show newest" button once at
+// least one photo is safely on the frame. Uploading never refreshes the frame on
+// its own; the button below is the only thing that does, and only when tapped.
+function refreshSummary(){
+  const total = items.length;
+  const ok = items.filter(i => i.done).length;
+  const failed = items.filter(i => i.failed).length;
+  if (total === 0 || (ok === 0 && failed === 0)){ summaryEl.hidden = true; showBtn.hidden = true; return; }
+  summaryEl.hidden = false;
+  summaryEl.textContent = ok + ' of ' + total + ' photo' + (total === 1 ? '' : 's') +
+                          ' on the frame ✓' + (failed ? '  ·  ' + failed + ' failed' : '');
+  summaryEl.className = 'summary ' + (failed ? 'err' : (ok === total ? 'ok' : ''));
+  showBtn.hidden = ok === 0;
+}
+
+showBtn.addEventListener('click', () => {
+  showBtn.disabled = true;
+  showBtn.textContent = 'Updating the frame…';
+  // The frame reboots to display the newest photo, which drops this connection,
+  // so the request usually never resolves — that's expected, ignore any error.
+  fetch('/api/done').catch(() => {});
+});
 
 fileInput.addEventListener('change', () => addFiles(fileInput.files));
 sendBtn.addEventListener('click', sendAll);
