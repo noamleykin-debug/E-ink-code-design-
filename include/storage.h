@@ -14,6 +14,10 @@ String getNextImage();
 bool addImage(const String& filename);
 bool removeImage(const String& filename);
 
+// Point the cursor at the newest image so the next getNextImage() returns it.
+// Used by the portal's optional "Show newest" action before a reboot.
+void jumpToLast();
+
 // Accessors for external use (UI/debugging)
 int getCursor();
 std::vector<String> getPlaylist();

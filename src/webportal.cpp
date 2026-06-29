@@ -94,6 +94,20 @@ void init() {
         updateActivity();
         request->send(200, "text/plain", "Upload Successful");
     }, handleUpload);
+
+    // Optional "Show newest" action from the UI. Point the cursor at the freshly
+    // uploaded photo and reboot into the image path. Rebooting is the only clean
+    // hand-off: Wi-Fi and the decode/dither/refresh pipeline must never run in the
+    // same wake (PSRAM/heap contention), so we end this wake entirely. Uploads on
+    // their own never trigger this — it only fires when the user taps the button.
+    server.on("/api/done", HTTP_GET, [](AsyncWebServerRequest *request) {
+        updateActivity();
+        log_i("Web Portal: Show-newest requested. Rebooting into image path.");
+        Storage::jumpToLast();
+        request->send(200, "text/plain", "OK");
+        delay(300); // let the HTTP response flush before the reboot drops the link
+        ESP.restart();
+    });
     
     // Fallback trap
     server.onNotFound([](AsyncWebServerRequest *request) {

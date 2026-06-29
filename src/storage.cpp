@@ -59,6 +59,13 @@ bool init() {
         return false;
     }
 
+    // Ensure the image directory exists. LittleFS.open(path, "w") fails silently
+    // if the parent dir is missing, which would drop every upload while still
+    // recording phantom entries in playlist.json.
+    if (!LittleFS.exists(FS_IMAGE_DIR)) {
+        LittleFS.mkdir(FS_IMAGE_DIR);
+    }
+
     File file = LittleFS.open(FS_PLAYLIST_PATH, "r");
     if (!file) {
         log_w("Playlist not found, starting fresh");
@@ -140,6 +147,13 @@ bool removeImage(const String& filename) {
     }
     
     return found;
+}
+
+void jumpToLast() {
+    if (!s_playlist.empty()) {
+        s_cursor = (int)s_playlist.size() - 1;
+        savePlaylist();
+    }
 }
 
 int getCursor() {
