@@ -81,15 +81,19 @@ enum EpdColorIndex : uint8_t {
 
 struct RgbRef { uint8_t r, g, b; };
 
-// Reference palette in RGB888. Tune these to the panel's measured primaries
-// later; nearest-color search in the ditherer keys off this table.
+// Reference palette in RGB888 — the *measured appearance* of each Spectra-6 ink,
+// NOT the idealized primary. The ditherer matches the source image against these
+// real colors so its error estimates are correct; the display layer still emits
+// the pure device color per index (two-stage calibrated-match / device-output).
+// Values from paperlesspaper/epdoptimize "spectra6" set; remeasure per-unit if a
+// color reads off. ("-original" {0/255} reproduces the old pure-primary behavior.)
 static const RgbRef EPD_PALETTE[COL_COUNT] = {
-  {   0,   0,   0 },   // COL_BLACK
-  { 255, 255, 255 },   // COL_WHITE
-  { 255,   0,   0 },   // COL_RED
-  {   0, 255,   0 },   // COL_GREEN
-  {   0,   0, 255 },   // COL_BLUE
-  { 255, 255,   0 },   // COL_YELLOW
+  {  31,  34,  38 },   // COL_BLACK   #1F2226
+  { 185, 199, 201 },   // COL_WHITE   #B9C7C9 (dim blue-grey, not pure white)
+  {  98,  32,  30 },   // COL_RED     #62201E (deep brick-red)
+  {  53,  86,  58 },   // COL_GREEN   #35563A (muted forest)
+  {  35,  63, 142 },   // COL_BLUE    #233F8E
+  { 193, 187,  30 },   // COL_YELLOW  #C1BB1E (olive-yellow)
 };
 
 // ----------------------------------------------------------------------------
@@ -101,8 +105,10 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 //  where 100 = no change. Defaults below are a "vivid / punchy" starting point.
 // ----------------------------------------------------------------------------
 #define DITHER_SERPENTINE       1     // 1 = alternate scan direction each row
-#define DITHER_SATURATION       150   // >100 boosts color; fills white holes
-#define DITHER_CONTRAST         112   // >100 deepens shadows/highlights
+// With the calibrated (already-muted) palette the matcher picks color on its own,
+// so these are gentler than the old pure-primary defaults to avoid oversaturating.
+#define DITHER_SATURATION       130   // >100 boosts color; fills white holes
+#define DITHER_CONTRAST         108   // >100 deepens shadows/highlights
 // Perceptual channel weights for the nearest-color search (relative, ~luma).
 // Green carries most apparent brightness, blue the least. Equal {16,16,16}
 // reproduces the old unweighted Euclidean match.
