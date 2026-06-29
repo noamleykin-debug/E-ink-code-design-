@@ -61,6 +61,24 @@
   .summary{margin-top:12px; text-align:center; font-weight:600; font-size:.95rem; color:var(--muted)}
   .summary.ok{color:var(--ok)} .summary.err{color:var(--err)}
   .btn.ghost{background:#fff; color:var(--accent); border:1px solid var(--accent)}
+  .tabs{display:flex; gap:8px; margin-top:16px}
+  .tab{flex:1; padding:10px; border:1px solid var(--line); background:var(--card);
+       border-radius:10px; font-weight:600; color:var(--muted); cursor:pointer}
+  .tab.active{color:var(--ink); border-color:var(--accent)}
+  .manage-bar{display:flex; gap:8px; margin-bottom:10px}
+  .btn.small{width:auto; flex:0 0 auto; margin-top:0; padding:8px 12px; font-size:.85rem}
+  .btn.danger{background:var(--err)}
+  .btn.ghost.danger{background:#fff; color:var(--err); border:1px solid var(--err)}
+  .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+  .cell{position:relative; aspect-ratio:5/3; border:2px solid var(--line);
+        border-radius:10px; overflow:hidden; background:#eee; cursor:pointer}
+  .cell img{width:100%; height:100%; object-fit:cover; display:block}
+  .cell.sel{border-color:var(--accent)}
+  .cell .check{position:absolute; top:6px; right:6px; width:24px; height:24px;
+        border-radius:50%; background:rgba(255,255,255,.85); border:1px solid var(--line);
+        display:flex; align-items:center; justify-content:center; font-size:14px; color:transparent}
+  .cell.sel .check{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .empty{color:var(--muted); text-align:center; padding:24px 0}
   footer{color:var(--muted); font-size:.78rem; text-align:center; margin-top:22px}
 </style>
 </head>
@@ -70,6 +88,12 @@
   <div class="sub">Add photos — they're auto-fitted to 800×480 and sent to the frame.</div>
 </header>
 
+<nav class="tabs">
+  <button class="tab active" id="tabUpload">Upload</button>
+  <button class="tab" id="tabManage">Manage</button>
+</nav>
+
+<section id="panelUpload">
 <div class="card">
   <label class="drop" id="drop">
     <input type="file" id="file" accept="image/*" multiple>
@@ -80,6 +104,20 @@
   <div class="summary" id="summary" hidden></div>
   <button class="btn ghost" id="show" hidden>Show newest on frame</button>
 </div>
+</section>
+
+<section id="panelManage" hidden>
+<div class="card">
+  <div class="manage-bar">
+    <button class="btn small ghost" id="selectAll">Select all</button>
+    <button class="btn small ghost" id="refreshList">Refresh</button>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden>No photos on the frame yet.</div>
+  <button class="btn danger" id="delSelected" disabled>Delete selected</button>
+  <button class="btn ghost danger" id="delAll" hidden>Delete all photos</button>
+</div>
+</section>
 
 <footer>
   Connected to the frame's Wi-Fi. Keep this page open until uploads finish,
@@ -273,6 +311,106 @@ sendBtn.addEventListener('click', sendAll);
 ['dragleave','drop'].forEach(ev =>
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
 drop.addEventListener('drop', e => { if (e.dataTransfer) addFiles(e.dataTransfer.files); });
+
+// ---- Manage tab: view + multi-select delete of photos already on the frame ----
+const tabUpload = document.getElementById('tabUpload');
+const tabManage = document.getElementById('tabManage');
+const panelUpload = document.getElementById('panelUpload');
+const panelManage = document.getElementById('panelManage');
+const grid = document.getElementById('grid');
+const emptyEl = document.getElementById('empty');
+const selectAllBtn = document.getElementById('selectAll');
+const refreshBtn = document.getElementById('refreshList');
+const delSelectedBtn = document.getElementById('delSelected');
+const delAllBtn = document.getElementById('delAll');
+const selected = new Set();
+
+function showTab(manage){
+  tabManage.classList.toggle('active', manage);
+  tabUpload.classList.toggle('active', !manage);
+  panelManage.hidden = !manage;
+  panelUpload.hidden = manage;
+  if (manage) loadList();
+}
+tabUpload.addEventListener('click', () => showTab(false));
+tabManage.addEventListener('click', () => showTab(true));
+
+function updateDeleteBar(){
+  const n = selected.size;
+  delSelectedBtn.disabled = n === 0;
+  delSelectedBtn.textContent = n ? 'Delete selected (' + n + ')' : 'Delete selected';
+}
+
+async function loadList(){
+  grid.innerHTML = '';
+  selected.clear();
+  updateDeleteBar();
+  let files = [];
+  try {
+    const r = await fetch('/api/list');
+    files = await r.json();
+  } catch(e){ /* show empty state below */ }
+  emptyEl.hidden = files.length > 0;
+  delAllBtn.hidden = files.length === 0;
+  for (const path of files){
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.path = path;
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.src = path; // served from LittleFS under /img
+    const check = document.createElement('div');
+    check.className = 'check';
+    check.textContent = '✓';
+    cell.appendChild(img);
+    cell.appendChild(check);
+    cell.addEventListener('click', () => {
+      if (selected.has(path)) selected.delete(path); else selected.add(path);
+      cell.classList.toggle('sel', selected.has(path));
+      updateDeleteBar();
+    });
+    grid.appendChild(cell);
+  }
+}
+
+selectAllBtn.addEventListener('click', () => {
+  const cells = [...grid.children];
+  const selectEverything = selected.size !== cells.length;
+  selected.clear();
+  cells.forEach(cell => {
+    if (selectEverything){ selected.add(cell.dataset.path); cell.classList.add('sel'); }
+    else cell.classList.remove('sel');
+  });
+  updateDeleteBar();
+});
+
+refreshBtn.addEventListener('click', loadList);
+
+async function deletePaths(paths){
+  delSelectedBtn.disabled = true; delAllBtn.disabled = true;
+  for (const path of paths){
+    // One request per photo keeps the firmware endpoint trivial. Ignore individual
+    // failures; the list reload afterwards reflects what's actually on the frame.
+    try { await fetch('/api/delete?file=' + encodeURIComponent(path), { method: 'POST' }); }
+    catch(e){ /* ignore */ }
+  }
+  delAllBtn.disabled = false;
+  await loadList();
+}
+
+delSelectedBtn.addEventListener('click', () => {
+  const n = selected.size;
+  if (!n) return;
+  if (!confirm('Delete ' + n + ' photo' + (n === 1 ? '' : 's') + ' from the frame?')) return;
+  deletePaths([...selected]);
+});
+
+delAllBtn.addEventListener('click', () => {
+  const all = [...grid.children].map(c => c.dataset.path);
+  if (!all.length) return;
+  if (!confirm('Delete ALL ' + all.length + ' photos from the frame? This cannot be undone.')) return;
+  deletePaths(all);
+});
 </script>
 </body>
 </html>

@@ -6,6 +6,7 @@
 #include <AsyncTCP.h>
 #include <DNSServer.h>
 #include <LittleFS.h>
+#include <ArduinoJson.h>
 
 namespace WebPortal {
 
@@ -85,6 +86,10 @@ void init() {
         request->send(200, "text/plain", "Microsoft Connect Test");
     });
     
+    // Serve stored photos so the Manage tab can render thumbnails. Registered
+    // before the catch-all "/" handler so /img/* resolves to the gallery dir.
+    server.serveStatic("/img", LittleFS, FS_IMAGE_DIR);
+
     // Serve frontend from LittleFS
     server.serveStatic("/", LittleFS, FS_WEB_DIR)
           .setDefaultFile("index.html");
@@ -107,6 +112,39 @@ void init() {
         request->send(200, "text/plain", "OK");
         delay(300); // let the HTTP response flush before the reboot drops the link
         ESP.restart();
+    });
+
+    // Manage tab: list stored photos as a JSON array for the thumbnail grid.
+    server.on("/api/list", HTTP_GET, [](AsyncWebServerRequest *request) {
+        updateActivity();
+        JsonDocument doc;
+        JsonArray arr = doc.to<JsonArray>();
+        for (const String& p : Storage::getPlaylist()) {
+            arr.add(p);
+        }
+        String out;
+        serializeJson(doc, out);
+        request->send(200, "application/json", out);
+    });
+
+    // Manage tab: delete one photo (file + playlist entry). The frontend sends
+    // one request per selected photo. Confine deletes to the image dir and reject
+    // path traversal so a stray request can't reach anything else on the FS.
+    server.on("/api/delete", HTTP_POST, [](AsyncWebServerRequest *request) {
+        updateActivity();
+        if (!request->hasParam("file")) {
+            request->send(400, "text/plain", "missing file");
+            return;
+        }
+        String f = request->getParam("file")->value();
+        String prefix = String(FS_IMAGE_DIR) + "/";
+        if (!f.startsWith(prefix) || f.indexOf("..") >= 0) {
+            request->send(400, "text/plain", "bad path");
+            return;
+        }
+        bool ok = Storage::deleteImage(f);
+        log_i("Web Portal: delete %s -> %s", f.c_str(), ok ? "ok" : "fail");
+        request->send(ok ? 200 : 500, "text/plain", ok ? "deleted" : "error");
     });
     
     // Fallback trap

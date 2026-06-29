@@ -156,6 +156,15 @@ void jumpToLast() {
     }
 }
 
+bool deleteImage(const String& filename) {
+    // Erase the physical JPEG from flash, not just the playlist entry. A
+    // playlist-only removal would orphan the file and slowly fill LittleFS.
+    // An already-missing file counts as success so the list can self-heal.
+    bool fileGone = !LittleFS.exists(filename) || LittleFS.remove(filename);
+    bool listGone = removeImage(filename); // drops entry, clamps cursor, saves
+    return fileGone && listGone;
+}
+
 int getCursor() {
     return s_cursor;
 }
