@@ -75,10 +75,11 @@ bool decodeFileToPSRAM(const String& filename, uint16_t* rgb565_out) {
     s_dest_buffer = rgb565_out;
     TJpgDec.setJpgScale(1);
     
-    // Set swap bytes to true to normalize endianness for the downstream ditherer.
-    // The ESP32-S3 is little-endian, so swapping ensures the RGB565 bits are 
-    // laid out predictably for our shifting logic: r = (color >> 11) & 0x1F
-    TJpgDec.setSwapBytes(true); 
+    // Do NOT byte-swap. The ditherer reads each pixel as a native uint16_t and
+    // extracts channels by shifting (r = (color >> 11) & 0x1F), so it needs the
+    // pixel in normal RGB565 layout. setSwapBytes(true) reverses the bytes of
+    // every pixel and scrambles the colors.
+    TJpgDec.setSwapBytes(false);
     
     TJpgDec.setCallback(tjpgd_output);
     

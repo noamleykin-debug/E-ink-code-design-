@@ -6,13 +6,14 @@
 #include <AsyncTCP.h>
 #include <DNSServer.h>
 #include <LittleFS.h>
+#include <ArduinoJson.h>
 
 namespace WebPortal {
 
 static AsyncWebServer server(WEB_PORT);
 static DNSServer dnsServer;
-static uint32_t s_last_activity_ms = 0;
-static bool s_finished = false;
+static volatile uint32_t s_last_activity_ms = 0;
+static volatile bool s_finished = false;
 
 static void updateActivity() {
     s_last_activity_ms = millis();
@@ -85,6 +86,10 @@ void init() {
         request->send(200, "text/plain", "Microsoft Connect Test");
     });
     
+    // Serve stored photos so the Manage tab can render thumbnails. Registered
+    // before the catch-all "/" handler so /img/* resolves to the gallery dir.
+    server.serveStatic("/img", LittleFS, FS_IMAGE_DIR);
+
     // Serve frontend from LittleFS
     server.serveStatic("/", LittleFS, FS_WEB_DIR)
           .setDefaultFile("index.html");
@@ -94,6 +99,72 @@ void init() {
         updateActivity();
         request->send(200, "text/plain", "Upload Successful");
     }, handleUpload);
+
+    // Optional "Show newest" action from the UI. Point the cursor at the freshly
+    // uploaded photo and reboot into the image path. Rebooting is the only clean
+    // hand-off: Wi-Fi and the decode/dither/refresh pipeline must never run in the
+    // same wake (PSRAM/heap contention), so we end this wake entirely. Uploads on
+    // their own never trigger this — it only fires when the user taps the button.
+    server.on("/api/done", HTTP_GET, [](AsyncWebServerRequest *request) {
+        updateActivity();
+        log_i("Web Portal: Show-newest requested. Rebooting into image path.");
+        Storage::jumpToLast();
+        request->send(200, "text/plain", "OK");
+        delay(300); // let the HTTP response flush before the reboot drops the link
+        ESP.restart();
+    });
+
+    server.on("/api/show", HTTP_POST, [](AsyncWebServerRequest *request) {
+        updateActivity();
+        if (!request->hasParam("file")) {
+            request->send(400, "text/plain", "missing file");
+            return;
+        }
+        String f = request->getParam("file")->value();
+        String prefix = String(FS_IMAGE_DIR) + "/";
+        if (!f.startsWith(prefix) || f.indexOf("..") >= 0) {
+            request->send(400, "text/plain", "bad path");
+            return;
+        }
+        log_i("Web Portal: Show specific photo requested (%s). Rebooting.", f.c_str());
+        Storage::jumpTo(f);
+        request->send(200, "text/plain", "OK");
+        delay(300);
+        ESP.restart();
+    });
+
+    // Manage tab: list stored photos as a JSON array for the thumbnail grid.
+    server.on("/api/list", HTTP_GET, [](AsyncWebServerRequest *request) {
+        updateActivity();
+        JsonDocument doc;
+        JsonArray arr = doc.to<JsonArray>();
+        for (const String& p : Storage::getPlaylist()) {
+            arr.add(p);
+        }
+        String out;
+        serializeJson(doc, out);
+        request->send(200, "application/json", out);
+    });
+
+    // Manage tab: delete one photo (file + playlist entry). The frontend sends
+    // one request per selected photo. Confine deletes to the image dir and reject
+    // path traversal so a stray request can't reach anything else on the FS.
+    server.on("/api/delete", HTTP_POST, [](AsyncWebServerRequest *request) {
+        updateActivity();
+        if (!request->hasParam("file")) {
+            request->send(400, "text/plain", "missing file");
+            return;
+        }
+        String f = request->getParam("file")->value();
+        String prefix = String(FS_IMAGE_DIR) + "/";
+        if (!f.startsWith(prefix) || f.indexOf("..") >= 0) {
+            request->send(400, "text/plain", "bad path");
+            return;
+        }
+        bool ok = Storage::deleteImage(f);
+        log_i("Web Portal: delete %s -> %s", f.c_str(), ok ? "ok" : "fail");
+        request->send(ok ? 200 : 500, "text/plain", ok ? "deleted" : "error");
+    });
     
     // Fallback trap
     server.onNotFound([](AsyncWebServerRequest *request) {
@@ -116,7 +187,8 @@ void loop() {
     dnsServer.processNextRequest();
     
     // Inactivity Watchdog Evaluation
-    if (millis() - s_last_activity_ms > WIFI_WATCHDOG_MS) {
+    uint32_t now = millis();
+    if (now >= s_last_activity_ms && (now - s_last_activity_ms > WIFI_WATCHDOG_MS)) {
         log_i("Web Portal Watchdog: Inactivity timeout. Shutting down.");
         s_finished = true;
         

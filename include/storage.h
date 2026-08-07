@@ -13,6 +13,9 @@ bool init();
 String getNextImage();
 bool addImage(const String& filename);
 bool removeImage(const String& filename);
+bool deleteImage(const String& filename);
+void jumpToLast();
+void jumpTo(const String& filename);
 
 // Accessors for external use (UI/debugging)
 int getCursor();

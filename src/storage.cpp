@@ -59,6 +59,13 @@ bool init() {
         return false;
     }
 
+    // Ensure the image directory exists. LittleFS.open(path, "w") fails silently
+    // if the parent dir is missing, which would drop every upload while still
+    // recording phantom entries in playlist.json.
+    if (!LittleFS.exists(FS_IMAGE_DIR)) {
+        LittleFS.mkdir(FS_IMAGE_DIR);
+    }
+
     File file = LittleFS.open(FS_PLAYLIST_PATH, "r");
     if (!file) {
         log_w("Playlist not found, starting fresh");
@@ -140,6 +147,32 @@ bool removeImage(const String& filename) {
     }
     
     return found;
+}
+
+void jumpToLast() {
+    if (!s_playlist.empty()) {
+        s_cursor = (int)s_playlist.size() - 1;
+        savePlaylist();
+    }
+}
+
+void jumpTo(const String& filename) {
+    for (size_t i = 0; i < s_playlist.size(); i++) {
+        if (s_playlist[i] == filename) {
+            s_cursor = i;
+            savePlaylist();
+            break;
+        }
+    }
+}
+
+bool deleteImage(const String& filename) {
+    // Erase the physical JPEG from flash, not just the playlist entry. A
+    // playlist-only removal would orphan the file and slowly fill LittleFS.
+    // An already-missing file counts as success so the list can self-heal.
+    bool fileGone = !LittleFS.exists(filename) || LittleFS.remove(filename);
+    bool listGone = removeImage(filename); // drops entry, clamps cursor, saves
+    return fileGone && listGone;
 }
 
 int getCursor() {
