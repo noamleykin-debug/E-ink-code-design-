@@ -52,7 +52,13 @@
 //  Battery failsafe: GPIO6 = ADC1_CH5, external resistor divider ÷2.
 //  ADC pin maxes near ~2.1V (=> ~4.2V pack). Read BEFORE every refresh;
 //  isolate the pin before deep sleep with rtc_gpio_isolate(GPIO_NUM_6).
+//
+//  HARDWARE STATUS: the divider tap between the battery and the buck-boost is
+//  NOT wired yet, so GPIO6 floats and any reading is meaningless. Keep the
+//  monitor DISABLED (0) until the sense line exists, then set it to 1 to arm
+//  the low-battery gate in Power::isBatteryOk().
 // ----------------------------------------------------------------------------
+#define BATT_MONITOR_ENABLED    0                  // 0 = sense line not wired
 #define BATT_ADC_GPIO           GPIO_NUM_6
 #define BATT_ADC_CHANNEL        ADC1_CHANNEL_5     // ADC1_CH5 == GPIO6
 #define BATT_ADC_DIVIDER        2.0f               // Vbatt = Vadc * divider
@@ -110,6 +116,19 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 // Wi-Fi / captive-portal session auto-shutdown (millis is fine here).
 #define WIFI_WATCHDOG_MS        (3UL * 60UL * 1000UL)   // 3 minutes
 
+// Grace period between answering an /api/done | /api/show request and the
+// actual reboot, so the HTTP response reaches the phone and the page can show
+// a "frame is updating" message before the AP disappears.
+#define PORTAL_REBOOT_GRACE_MS  1500
+
+// Slideshow (timer-driven auto-advance). The floor protects the panel (E-Ink
+// refresh stress) and the battery; the ceiling is the 24h mandatory refresh.
+// Disabled by default: the frame only advances on touch + the 24h refresh.
+#define SLIDESHOW_DEFAULT_ENABLED   false
+#define SLIDESHOW_DEFAULT_SEC       (60UL * 60UL)           // 1 hour
+#define SLIDESHOW_MIN_SEC           (5UL * 60UL)            // 5 minute floor
+#define SLIDESHOW_MAX_SEC           MANDATORY_REFRESH_SEC
+
 // ----------------------------------------------------------------------------
 //  Networking — SoftAP captive portal
 // ----------------------------------------------------------------------------
@@ -126,19 +145,15 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 //  Filesystem layout (LittleFS) — mount with LittleFS.begin(false) ONLY.
 // ----------------------------------------------------------------------------
 #define FS_PLAYLIST_PATH        "/playlist.json"
+#define FS_SETTINGS_PATH        "/settings.json"
 #define FS_IMAGE_DIR            "/img"          // JPEGs land here, e.g. /img/0007.jpg
 #define FS_WEB_DIR              "/www"          // captive-portal frontend assets
 
 // ----------------------------------------------------------------------------
 //  PSRAM buffers (allocated at runtime with MALLOC_CAP_SPIRAM)
 //
-//  TJpg_Decoder workspace must live in PSRAM (heap_caps_malloc), not the
-//  internal heap. The full image is held in PSRAM and emitted page-by-page.
+//  The full image is held in PSRAM and emitted page-by-page.
 // ----------------------------------------------------------------------------
-#ifndef TJPG_WORKSPACE_SIZE
-#define TJPG_WORKSPACE_SIZE     (64 * 1024)     // TJpg scratch (PSRAM)
-#endif
-
 // Full-frame RGB565 scratch used during decode + dither (PSRAM).
 //   800 * 480 * 2 bytes = 768000 bytes
 #define FRAME_RGB565_BYTES      ((size_t)EPD_PIXELS * 2)

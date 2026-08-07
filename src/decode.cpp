@@ -2,7 +2,6 @@
 #include "config.h"
 #include <LittleFS.h>
 #include <TJpg_Decoder.h>
-#include <esp_heap_caps.h>
 
 namespace Decode {
 
@@ -55,46 +54,39 @@ bool decodeFileToPSRAM(const String& filename, uint16_t* rgb565_out) {
     
     // Read headers to enforce resolution gate (800x480 ONLY)
     uint16_t jpg_w = 0, jpg_h = 0;
-    TJpgDec.getFsJpgSize(&jpg_w, &jpg_h, filename.c_str(), LittleFS);
-    
+    JRESULT jres = TJpgDec.getFsJpgSize(&jpg_w, &jpg_h, filename.c_str(), LittleFS);
+    if (jres != JDR_OK) {
+        log_e("Decode: Failed to read JPEG header for %s (JRESULT %d)", filename.c_str(), (int)jres);
+        return false;
+    }
+
     if (jpg_w != EPD_WIDTH || jpg_h != EPD_HEIGHT) {
         log_e("Decode: Dimension mismatch. Expected %dx%d, got %dx%d", EPD_WIDTH, EPD_HEIGHT, jpg_w, jpg_h);
         return false;
     }
-    
-    log_i("Decode: Allocating TJpg workspace in PSRAM (%d bytes)", TJPG_WORKSPACE_SIZE);
-    
-    // Allocate the scratch workspace strictly in PSRAM
-    uint8_t* workspace = (uint8_t*)heap_caps_malloc(TJPG_WORKSPACE_SIZE, MALLOC_CAP_SPIRAM);
-    if (!workspace) {
-        log_e("Decode: Failed to allocate workspace in PSRAM");
-        return false;
-    }
-    
-    // Setup TJpg_Decoder
+
+    // Setup TJpg_Decoder (it manages its own internal workspace)
     s_dest_buffer = rgb565_out;
     TJpgDec.setJpgScale(1);
-    
+
     // Do NOT byte-swap. The ditherer reads each pixel as a native uint16_t and
     // extracts channels by shifting (r = (color >> 11) & 0x1F), so it needs the
     // pixel in normal RGB565 layout. setSwapBytes(true) reverses the bytes of
     // every pixel and scrambles the colors.
     TJpgDec.setSwapBytes(false);
-    
+
     TJpgDec.setCallback(tjpgd_output);
-    
-    // Depending on the TJpg_Decoder fork, the workspace might need to be assigned.
-    // For safety, we allocate it manually here to ensure heap space is tracked,
-    // and let the internal TJpgDec utilize dynamic allocation or global scope.
-    
+
     log_i("Decode: Starting JPEG decompress");
-    TJpgDec.drawFsJpg(0, 0, filename.c_str(), LittleFS);
-    log_i("Decode: Complete");
-    
-    // Cleanup state and restore PSRAM ceiling
+    jres = TJpgDec.drawFsJpg(0, 0, filename.c_str(), LittleFS);
     s_dest_buffer = nullptr;
-    heap_caps_free(workspace);
-    
+
+    if (jres != JDR_OK) {
+        log_e("Decode: Decompress failed for %s (JRESULT %d)", filename.c_str(), (int)jres);
+        return false;
+    }
+
+    log_i("Decode: Complete");
     return true;
 }
 
