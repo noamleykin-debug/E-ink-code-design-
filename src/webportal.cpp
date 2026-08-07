@@ -127,9 +127,21 @@ void init() {
         request->send(200, "text/plain", "Microsoft Connect Test");
     });
     
+    // Keep-alive heartbeat. Static file requests (the page itself, the photo
+    // thumbnails) never touch the API handlers, so without this the inactivity
+    // watchdog fires while the user is actively browsing photos. The frontend
+    // pings every 30s while the page is open.
+    server.on("/api/ping", HTTP_GET, [](AsyncWebServerRequest *request) {
+        updateActivity();
+        request->send(204);
+    });
+
     // Serve stored photos so the Manage tab can render thumbnails. Registered
     // before the catch-all "/" handler so /img/* resolves to the gallery dir.
-    server.serveStatic("/img", LittleFS, FS_IMAGE_DIR);
+    // Filenames are unique per upload (img_<uid>.jpg), so aggressive caching is
+    // safe and spares the slow LittleFS reads on every Manage-tab open.
+    server.serveStatic("/img", LittleFS, FS_IMAGE_DIR)
+          .setCacheControl("public, max-age=86400");
 
     // Serve frontend from LittleFS
     server.serveStatic("/", LittleFS, FS_WEB_DIR)
