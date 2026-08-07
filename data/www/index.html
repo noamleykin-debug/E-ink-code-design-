@@ -214,6 +214,16 @@
       <option value="86400">24 hours</option>
     </select>
   </div>
+  <div class="set-row">
+    <div>
+      <div class="set-label">Dither style</div>
+      <div class="set-help">Classic is crisper; Soft gives cleaner skies and skin with fewer stray dark dots. Applies from the next photo change.</div>
+    </div>
+    <select id="setDither">
+      <option value="0" selected>Classic (Floyd&#8209;Steinberg)</option>
+      <option value="1">Soft (Atkinson)</option>
+    </select>
+  </div>
   <button class="btn" id="saveSettings">Save settings</button>
   <div class="summary" id="settingsStatus" hidden></div>
 </div>
@@ -823,6 +833,7 @@ saveOrderBtn.addEventListener('click', async () => {
 // ---------------------------------------------------------------------------
 const setSlideshow = document.getElementById('setSlideshow');
 const setInterval_ = document.getElementById('setInterval');
+const setDither = document.getElementById('setDither');
 const saveSettingsBtn = document.getElementById('saveSettings');
 const settingsStatus = document.getElementById('settingsStatus');
 
@@ -836,6 +847,7 @@ async function loadSettings(){
     const opts = [...setInterval_.options].map(o => +o.value);
     const v = +j.interval_sec || 3600;
     setInterval_.value = String(opts.find(o => o >= v) || opts[opts.length - 1]);
+    setDither.value = (j.dither === 1) ? '1' : '0';
   } catch(e){ /* leave defaults */ }
 }
 
@@ -844,7 +856,8 @@ saveSettingsBtn.addEventListener('click', async () => {
   let ok = false;
   try {
     const q = '/api/settings?slideshow=' + (setSlideshow.checked ? 1 : 0) +
-              '&interval_sec=' + setInterval_.value;
+              '&interval_sec=' + setInterval_.value +
+              '&dither=' + setDither.value;
     const r = await fetch(q, { method: 'POST' });
     ok = r.ok;
   } catch(e){}

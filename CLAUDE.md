@@ -64,10 +64,11 @@ platformio.ini          Build config: 16MB flash, OPI PSRAM, libs, partitions.
 partitions.csv          3MB app0 / 3MB app1 / ~9.9MB LittleFS / coredump.
 include/                Public headers (config.h is the source of truth).
 src/                    Module implementations (one .cpp per module) + main.cpp.
-docs/ROADMAP.md         System architecture, module map, data flow, RTC state.
-docs/WORKFLOW.md        Branch/PR rules, merge order, definition of done.
-docs/plans/<module>.md  Per-module spec: responsibility, interface, traps, checklist.
-docs/prompts/<module>.md Copy-paste prompt to hand a module to a fresh agent.
+docs/ARCHITECTURE.md    System architecture, module map, data flow, persistence.
+docs/DEVELOPMENT.md     Branch/PR rules, build commands, definition of done.
+docs/API.md             Captive-portal HTTP API reference.
+docs/ai/                AI-assisted workflow notes + the per-module prompts.
+docs/hardware/          Hardware documentation (in progress).
 .github/workflows/      CI (PlatformIO build).
 ```
 
@@ -90,7 +91,7 @@ Each module is independently developed on its own branch and integrated into
 
 ## 5. Workflow (how to ship work)
 
-Full detail in **`docs/WORKFLOW.md`**. The short version:
+Full detail in **`docs/DEVELOPMENT.md`**. The short version:
 
 1. **Never commit to `main` directly.** `main` is integration-only; it changes
    via reviewed PRs.
@@ -120,9 +121,9 @@ module's own Definition of Done in its prompt).
 ## 7. Start-here checklist for a fresh agent
 
 1. Read this file (Golden Rules especially).
-2. Read `docs/ROADMAP.md` for the system picture.
+2. Read `docs/ARCHITECTURE.md` for the system picture.
 3. Identify your task. If you were handed a module, open its
-   `docs/plans/<module>.md` (the spec) and `docs/prompts/<module>.md` (your prompt).
+   `docs/ai/prompts/<module>.md` (the module prompt/spec).
 4. Check out the right branch (or create `feat/<topic>` from `main`).
 5. Implement within scope, honor the Golden Rules, build, push, open a draft PR.
 6. If something is ambiguous or would change the finalized hardware/architecture,

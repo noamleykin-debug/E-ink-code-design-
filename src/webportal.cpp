@@ -250,6 +250,7 @@ void init() {
         doc["slideshow"] = s.slideshowEnabled;
         doc["interval_sec"] = s.slideshowIntervalSec;
         doc["interval_min_sec"] = (uint32_t)SLIDESHOW_MIN_SEC;
+        doc["dither"] = s.ditherMode;
         String out;
         serializeJson(doc, out);
         request->send(200, "application/json", out);
@@ -265,9 +266,14 @@ void init() {
             long v = request->getParam("interval_sec")->value().toInt();
             if (v > 0) s.slideshowIntervalSec = (uint32_t)v;
         }
+        if (request->hasParam("dither")) {
+            long v = request->getParam("dither")->value().toInt();
+            if (v >= 0 && v <= DITHER_MODE_MAX) s.ditherMode = (uint8_t)v;
+        }
         bool ok = Storage::setSettings(s);
-        log_i("Web Portal: settings slideshow=%d interval=%u -> %s",
-              (int)s.slideshowEnabled, (unsigned)s.slideshowIntervalSec, ok ? "ok" : "fail");
+        log_i("Web Portal: settings slideshow=%d interval=%u dither=%u -> %s",
+              (int)s.slideshowEnabled, (unsigned)s.slideshowIntervalSec,
+              (unsigned)s.ditherMode, ok ? "ok" : "fail");
         request->send(ok ? 200 : 500, "text/plain", ok ? "ok" : "error");
     });
 

@@ -15,7 +15,7 @@
 // ----------------------------------------------------------------------------
 //  Firmware identity
 // ----------------------------------------------------------------------------
-#define FW_VERSION              "0.1.0"
+#define FW_VERSION              "1.0.0"
 
 // ----------------------------------------------------------------------------
 //  Display: GDEP073E01 (E6 7C panel) over hardware SPI via DESPI-C73
@@ -128,6 +128,12 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 #define SLIDESHOW_DEFAULT_SEC       (60UL * 60UL)           // 1 hour
 #define SLIDESHOW_MIN_SEC           (5UL * 60UL)            // 5 minute floor
 #define SLIDESHOW_MAX_SEC           MANDATORY_REFRESH_SEC
+
+// Dither algorithm (user-selectable in the web-app Settings tab):
+//   0 = Floyd-Steinberg (crisper, classic)
+//   1 = Atkinson (softer, cleaner flat areas)
+#define DITHER_MODE_DEFAULT         0
+#define DITHER_MODE_MAX             1
 
 // ----------------------------------------------------------------------------
 //  Networking — SoftAP captive portal

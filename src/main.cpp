@@ -124,7 +124,8 @@ void setup() {
     
     // The Core Pipeline
     if (Decode::decodeFileToPSRAM(nextImage, rgb565_buffer)) {
-        Dither::processFrame(rgb565_buffer, index_buffer);
+        Dither::processFrame(rgb565_buffer, index_buffer,
+                             (Dither::DitherMode)Storage::getSettings().ditherMode);
         Display::paintFromIndexBuffer(index_buffer);
         rtc_last_refresh_unix = get_unix_time();
     } else {

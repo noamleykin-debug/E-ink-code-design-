@@ -8,10 +8,11 @@ read it before doing anything.
 
 - **Project:** ESP32-S3 firmware for a 6-color E-Ink photo frame. Hardware is
   FINAL; constants live in `include/config.h` (source of truth).
-- **Before coding:** read `CLAUDE.md` (Golden Rules), `docs/ROADMAP.md`, and your
-  task's `docs/plans/<module>.md` + `docs/prompts/<module>.md`.
-- **Workflow:** one module = one branch (`plan/<module>`) = one draft PR into
-  `main`. **Never commit to `main` directly.** See `docs/WORKFLOW.md`.
+- **Before coding:** read `CLAUDE.md` (Golden Rules), `docs/ARCHITECTURE.md`, and
+  your task's `docs/ai/prompts/<module>.md` if you were handed a module.
+- **Workflow:** work on a `feat/<topic>` or `fix/<topic>` branch cut from `main`,
+  one draft PR into `main`. **Never commit to `main` directly.** See
+  `docs/DEVELOPMENT.md`.
 - **Build check:** `pio run` must pass. CI runs it on every PR.
 
 ## Hard constraints (do not violate — see CLAUDE.md §2 for the full list)
