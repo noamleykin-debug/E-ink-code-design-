@@ -37,14 +37,14 @@ static bool savePlaylist() {
         return false;
     }
     
-    log_i("Playlist saved: %d images, cursor %d", s_playlist.size(), s_cursor);
+    log_i("Playlist saved: %u images, cursor %d", (unsigned)s_playlist.size(), s_cursor);
     return true;
 }
 
 static void clampCursor() {
     if (s_playlist.empty()) {
         s_cursor = 0;
-    } else if (s_cursor >= s_playlist.size()) {
+    } else if (s_cursor >= (int)s_playlist.size()) {
         s_cursor = 0;
     } else if (s_cursor < 0) {
         s_cursor = 0;
@@ -97,7 +97,7 @@ bool init() {
 
     clampCursor();
     
-    log_i("Storage init: %d images loaded, cursor at %d", s_playlist.size(), s_cursor);
+    log_i("Storage init: %u images loaded, cursor at %d", (unsigned)s_playlist.size(), s_cursor);
     return true;
 }
 

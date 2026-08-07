@@ -52,7 +52,13 @@
 //  Battery failsafe: GPIO6 = ADC1_CH5, external resistor divider ÷2.
 //  ADC pin maxes near ~2.1V (=> ~4.2V pack). Read BEFORE every refresh;
 //  isolate the pin before deep sleep with rtc_gpio_isolate(GPIO_NUM_6).
+//
+//  HARDWARE STATUS: the divider tap between the battery and the buck-boost is
+//  NOT wired yet, so GPIO6 floats and any reading is meaningless. Keep the
+//  monitor DISABLED (0) until the sense line exists, then set it to 1 to arm
+//  the low-battery gate in Power::isBatteryOk().
 // ----------------------------------------------------------------------------
+#define BATT_MONITOR_ENABLED    0                  // 0 = sense line not wired
 #define BATT_ADC_GPIO           GPIO_NUM_6
 #define BATT_ADC_CHANNEL        ADC1_CHANNEL_5     // ADC1_CH5 == GPIO6
 #define BATT_ADC_DIVIDER        2.0f               // Vbatt = Vadc * divider
@@ -132,13 +138,8 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 // ----------------------------------------------------------------------------
 //  PSRAM buffers (allocated at runtime with MALLOC_CAP_SPIRAM)
 //
-//  TJpg_Decoder workspace must live in PSRAM (heap_caps_malloc), not the
-//  internal heap. The full image is held in PSRAM and emitted page-by-page.
+//  The full image is held in PSRAM and emitted page-by-page.
 // ----------------------------------------------------------------------------
-#ifndef TJPG_WORKSPACE_SIZE
-#define TJPG_WORKSPACE_SIZE     (64 * 1024)     // TJpg scratch (PSRAM)
-#endif
-
 // Full-frame RGB565 scratch used during decode + dither (PSRAM).
 //   800 * 480 * 2 bytes = 768000 bytes
 #define FRAME_RGB565_BYTES      ((size_t)EPD_PIXELS * 2)

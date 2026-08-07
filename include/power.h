@@ -21,7 +21,9 @@ WakeCause getWakeCause();
 // and returns the battery voltage in millivolts
 uint32_t getBatteryVoltageMv();
 
-// Returns true if the battery is above BATT_CUTOFF_MV
+// Returns true if the battery is above BATT_CUTOFF_MV.
+// While BATT_MONITOR_ENABLED is 0 (sense line not wired yet) this always
+// returns true without touching the ADC.
 bool isBatteryOk();
 
 // Isolates GPIOs, sets wake masks, and enters deep sleep

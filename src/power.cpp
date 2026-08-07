@@ -53,13 +53,21 @@ uint32_t getBatteryVoltageMv() {
     
     // Scale by the external resistor divider to get actual battery voltage
     s_battery_mv = (uint32_t)(pin_mv * BATT_ADC_DIVIDER);
-    
-    log_i("Battery ADC raw: %d, pin: %d mV, pack: %d mV", raw_avg, pin_mv, s_battery_mv);
+
+    log_i("Battery ADC raw: %u, pin: %u mV, pack: %u mV",
+          (unsigned)raw_avg, (unsigned)pin_mv, (unsigned)s_battery_mv);
     return s_battery_mv;
 }
 
 bool isBatteryOk() {
+#if BATT_MONITOR_ENABLED
+    return getBatteryVoltageMv() >= BATT_CUTOFF_MV;
+#else
+    // The divider tap between the battery and the buck-boost is not wired yet
+    // (see config.h), so GPIO6 floats and a reading would be garbage. Report
+    // OK unconditionally until the sense line exists.
     return true;
+#endif
 }
 
 void deepSleep(uint64_t sleep_sec) {

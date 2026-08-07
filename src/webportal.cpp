@@ -19,11 +19,29 @@ static void updateActivity() {
     s_last_activity_ms = millis();
 }
 
+// Reduce a client-supplied upload filename to a safe basename. Strips any
+// directory components so a crafted name (e.g. "../../playlist.json") cannot
+// escape FS_IMAGE_DIR. Returns "" if nothing usable remains.
+static String sanitizeFilename(const String& raw) {
+    String name = raw;
+    int slash = name.lastIndexOf('/');
+    if (slash >= 0) name = name.substring(slash + 1);
+    slash = name.lastIndexOf('\\');
+    if (slash >= 0) name = name.substring(slash + 1);
+    if (name.isEmpty() || name == "." || name == "..") return "";
+    return name;
+}
+
 // Chunked file upload handler
 static void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
     updateActivity();
-    
-    String path = String(FS_IMAGE_DIR) + "/" + filename;
+
+    String safeName = sanitizeFilename(filename);
+    if (safeName.isEmpty()) {
+        log_e("Upload rejected: unusable filename '%s'", filename.c_str());
+        return;
+    }
+    String path = String(FS_IMAGE_DIR) + "/" + safeName;
     
     if (index == 0) {
         log_i("Upload Start: %s", path.c_str());
