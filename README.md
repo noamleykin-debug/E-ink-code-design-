@@ -1,7 +1,7 @@
 # 🖼️ E-Ink Photo Frame
 
 [![Build](https://github.com/noamleykin-debug/E-ink-code-design-/actions/workflows/build.yml/badge.svg)](https://github.com/noamleykin-debug/E-ink-code-design-/actions/workflows/build.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-ESP32--S3-blue.svg)](https://www.espressif.com/en/products/socs/esp32-s3)
 
 **A battery-powered, 6-color e-paper photo frame you control from your phone: no app, no cloud, no account.**
@@ -9,10 +9,12 @@
 Built around an ESP32-S3 and a 7.3" Spectra 6 e-paper panel. Tap the frame and it wakes from deep sleep, paints the next photo, and goes back to sleep, sipping essentially zero power while the picture stays on the screen indefinitely.
 
 <p align="center">
-  <img src="docs/images/hero.jpg" alt="The finished frame" width="70%">
+  <img src="docs/images/hero.jpg" alt="The finished frame showing Van Gogh's Starry Night on the e-paper panel" width="80%">
+  <br>
+  <em>Van Gogh's "Starry Night", dithered to six inks and holding without power.</em>
 </p>
 
-> 📷 *Photos of the build live in [`docs/images/`](docs/images/), see the [gallery](#gallery) below.*
+> 📷 *More photos in the [gallery](#gallery) below. Source files live in [`docs/images/`](docs/images/).*
 
 ---
 
@@ -149,12 +151,40 @@ CI compiles every pull request (see [`.github/workflows`](.github/workflows)).
 
 ## Gallery
 
-| | |
-|---|---|
-| ![Frame front](docs/images/frame-front.jpg) | ![Portal upload tab](docs/images/portal-upload.png) |
-| *The frame* | *Captive portal, upload & crop* |
-| ![Manage tab](docs/images/portal-manage.png) | ![Dither detail](docs/images/dither-closeup.jpg) |
-| *Playlist management* | *6-color dither up close* |
+<p align="center">
+  <img src="docs/images/frame-front.jpg" alt="The frame straight on, showing a black-and-white photograph" width="80%">
+  <br>
+  <em>Straight on. Six inks handle monochrome too, the dither just stops using four of them.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/dither-closeup.jpg" alt="Close-up of the e-paper panel showing the error-diffusion dither pattern" width="80%">
+  <br>
+  <em>Up close, the error diffusion is visible: no grey ink exists, so the grain <strong>is</strong> the greyscale.</em>
+</p>
+
+### Demo video
+
+<!--
+  TO ADD THE VIDEO (GitHub hosts it for you, nothing to commit):
+
+  1. Open a new issue on this repo (you do not have to submit it):
+     https://github.com/noamleykin-debug/E-ink-code-design-/issues/new
+  2. Drag the .mp4/.mov into the comment box and wait for the upload to finish.
+     GitHub accepts video up to 10 MB per file on free plans, 100 MB on Pro.
+     If it is too big, trim it or re-encode smaller:
+         ffmpeg -i IMG_xxxx.mov -vf "scale=720:-2" -crf 30 -an demo.mp4
+  3. The box fills in with a URL like
+     https://github.com/user-attachments/assets/<uuid>
+  4. Copy that URL, close the issue draft without submitting, and paste the URL
+     on its own line below (a bare URL on its own line renders as a player).
+  5. Delete this comment block and the "not embedded yet" line.
+-->
+
+*Not embedded yet:* a 40-second clip of the touch pad being tapped, the panel
+doing its multi-pass color flicker, and the next photo landing. See the comment
+in this file (or [`docs/images/README.md`](docs/images/README.md)) for the
+two-minute recipe to host it on GitHub and drop the link in here.
 
 ## Credits
 
@@ -163,4 +193,17 @@ CI compiles every pull request (see [`.github/workflows`](.github/workflows)).
 
 ## License
 
-Released under the [MIT License](LICENSE).
+Released under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+**In plain English:** use it, modify it, build one, share your changes, write
+about it, teach with it. Personal projects, hobby builds, study, research,
+schools, nonprofits and public institutions are all covered.
+
+**What is not granted:** commercial use. You may not sell this firmware, ship it
+inside a product, or run it as part of a paid service without a separate
+license. If a company wants to do any of that, please
+[get in touch](https://github.com/noamleykin-debug) first.
+
+Third-party libraries the build pulls in (GxEPD2, Adafruit GFX, TJpg_Decoder,
+ESPAsyncWebServer, ArduinoJson, and the ESP32 Arduino core) keep their own
+licenses; this repository's terms cover only the code written for this project.
