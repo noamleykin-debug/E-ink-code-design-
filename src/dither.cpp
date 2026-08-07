@@ -58,7 +58,15 @@ void processFrame(const uint16_t* rgb565_in, uint8_t* index_out) {
     memset(index_out, 0, FRAME_INDEX_BYTES);
 
     for (int y = 0; y < EPD_HEIGHT; y++) {
-        for (int x = 0; x < EPD_WIDTH; x++) {
+        // Serpentine scan: odd rows run right-to-left with the error kernel
+        // mirrored. Plain raster FS pushes all error in one direction, which
+        // shows up as diagonal "worm" artifacts — very visible with only 6
+        // colors. Alternating direction breaks the pattern up.
+        const bool reverse = (y & 1) != 0;
+        const int dir = reverse ? -1 : 1;
+
+        for (int i = 0; i < EPD_WIDTH; i++) {
+            const int x = reverse ? (EPD_WIDTH - 1 - i) : i;
             int px_idx = y * EPD_WIDTH + x;
             uint16_t color16 = rgb565_in[px_idx];
             
@@ -92,27 +100,30 @@ void processFrame(const uint16_t* rgb565_in, uint8_t* index_out) {
                 index_out[byte_idx] = (index_out[byte_idx] & 0xF0) | (pal_idx & 0x0F);
             }
             
-            // Diffuse error (Floyd-Steinberg weights: 7/16, 3/16, 5/16, 1/16)
-            if (x + 1 < EPD_WIDTH) {
-                err_curr[(x + 1) * 3 + 0] += (er * 7) >> 4;
-                err_curr[(x + 1) * 3 + 1] += (eg * 7) >> 4;
-                err_curr[(x + 1) * 3 + 2] += (eb * 7) >> 4;
+            // Diffuse error (Floyd-Steinberg weights: 7/16, 3/16, 5/16, 1/16),
+            // mirrored on reversed rows: "ahead" is x+dir, "behind" is x-dir.
+            int xf = x + dir;   // forward neighbor (same row)
+            int xb = x - dir;   // backward-diagonal neighbor (next row)
+            if (xf >= 0 && xf < EPD_WIDTH) {
+                err_curr[xf * 3 + 0] += (er * 7) >> 4;
+                err_curr[xf * 3 + 1] += (eg * 7) >> 4;
+                err_curr[xf * 3 + 2] += (eb * 7) >> 4;
             }
             if (y + 1 < EPD_HEIGHT) {
-                if (x - 1 >= 0) {
-                    err_next[(x - 1) * 3 + 0] += (er * 3) >> 4;
-                    err_next[(x - 1) * 3 + 1] += (eg * 3) >> 4;
-                    err_next[(x - 1) * 3 + 2] += (eb * 3) >> 4;
+                if (xb >= 0 && xb < EPD_WIDTH) {
+                    err_next[xb * 3 + 0] += (er * 3) >> 4;
+                    err_next[xb * 3 + 1] += (eg * 3) >> 4;
+                    err_next[xb * 3 + 2] += (eb * 3) >> 4;
                 }
-                
+
                 err_next[x * 3 + 0] += (er * 5) >> 4;
                 err_next[x * 3 + 1] += (eg * 5) >> 4;
                 err_next[x * 3 + 2] += (eb * 5) >> 4;
-                
-                if (x + 1 < EPD_WIDTH) {
-                    err_next[(x + 1) * 3 + 0] += (er * 1) >> 4;
-                    err_next[(x + 1) * 3 + 1] += (eg * 1) >> 4;
-                    err_next[(x + 1) * 3 + 2] += (eb * 1) >> 4;
+
+                if (xf >= 0 && xf < EPD_WIDTH) {
+                    err_next[xf * 3 + 0] += (er * 1) >> 4;
+                    err_next[xf * 3 + 1] += (eg * 1) >> 4;
+                    err_next[xf * 3 + 2] += (eb * 1) >> 4;
                 }
             }
         }

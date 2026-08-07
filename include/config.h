@@ -116,6 +116,19 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 // Wi-Fi / captive-portal session auto-shutdown (millis is fine here).
 #define WIFI_WATCHDOG_MS        (3UL * 60UL * 1000UL)   // 3 minutes
 
+// Grace period between answering an /api/done | /api/show request and the
+// actual reboot, so the HTTP response reaches the phone and the page can show
+// a "frame is updating" message before the AP disappears.
+#define PORTAL_REBOOT_GRACE_MS  1500
+
+// Slideshow (timer-driven auto-advance). The floor protects the panel (E-Ink
+// refresh stress) and the battery; the ceiling is the 24h mandatory refresh.
+// Disabled by default: the frame only advances on touch + the 24h refresh.
+#define SLIDESHOW_DEFAULT_ENABLED   false
+#define SLIDESHOW_DEFAULT_SEC       (60UL * 60UL)           // 1 hour
+#define SLIDESHOW_MIN_SEC           (5UL * 60UL)            // 5 minute floor
+#define SLIDESHOW_MAX_SEC           MANDATORY_REFRESH_SEC
+
 // ----------------------------------------------------------------------------
 //  Networking — SoftAP captive portal
 // ----------------------------------------------------------------------------
@@ -132,6 +145,7 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 //  Filesystem layout (LittleFS) — mount with LittleFS.begin(false) ONLY.
 // ----------------------------------------------------------------------------
 #define FS_PLAYLIST_PATH        "/playlist.json"
+#define FS_SETTINGS_PATH        "/settings.json"
 #define FS_IMAGE_DIR            "/img"          // JPEGs land here, e.g. /img/0007.jpg
 #define FS_WEB_DIR              "/www"          // captive-portal frontend assets
 

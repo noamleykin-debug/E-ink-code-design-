@@ -3,15 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>E-Ink Frame — Upload</title>
+<title>E-Ink Frame</title>
 <!--
   Captive-portal frontend for the 7.3" 6-color E-Ink photo frame.
 
   Architecture: the frame's firmware does the dithering. This page only has to
-  deliver a JPEG at the panel's NATIVE resolution (800x480). So we crop+resize
-  every selected photo to exactly 800x480 in the browser (cover fit) and POST
-  the resulting JPEG to /api/upload, where the firmware stores it under /img and
-  registers it in playlist.json.
+  deliver a JPEG at the panel's NATIVE resolution (800x480). Every selected
+  photo is crop+resized to exactly 800x480 in the browser (center-cover by
+  default, user-adjustable via the crop editor) and POSTed to /api/upload,
+  where the firmware stores it under /img and registers it in playlist.json.
+
+  Tabs:
+    Upload   - pick photos, adjust crop, send
+    Manage   - thumbnails, select/delete, show one, reorder the playlist
+    Settings - slideshow (auto-advance) on/off + interval
 
   Everything is inlined (no CDNs): the captive portal has no internet access.
 -->
@@ -21,6 +26,9 @@
     --line:#d9d9d6; --accent:#1769ff; --ok:#1f9d55; --err:#d23b3b;
   }
   *{box-sizing:border-box}
+  /* The hidden attribute must beat class rules that set display (.btn, .grid,
+     .manage-bar...) — without this, `el.hidden = true` does nothing to them. */
+  [hidden]{display:none !important}
   html,body{margin:0}
   body{
     font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -38,6 +46,7 @@
   .drop{
     border:2px dashed var(--line); border-radius:12px; padding:28px 16px;
     text-align:center; color:var(--muted); cursor:pointer; transition:.15s;
+    display:block;
   }
   .drop.drag{border-color:var(--accent); color:var(--ink); background:#eef4ff}
   .drop strong{color:var(--ink)}
@@ -65,7 +74,7 @@
   .tab{flex:1; padding:10px; border:1px solid var(--line); background:var(--card);
        border-radius:10px; font-weight:600; color:var(--muted); cursor:pointer}
   .tab.active{color:var(--ink); border-color:var(--accent)}
-  .manage-bar{display:flex; gap:8px; margin-bottom:10px}
+  .manage-bar{display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap}
   .btn.small{width:auto; flex:0 0 auto; margin-top:0; padding:8px 12px; font-size:.85rem}
   .btn.danger{background:var(--err)}
   .btn.ghost.danger{background:#fff; color:var(--err); border:1px solid var(--err)}
@@ -78,19 +87,73 @@
         border-radius:50%; background:rgba(255,255,255,.85); border:1px solid var(--line);
         display:flex; align-items:center; justify-content:center; font-size:14px; color:transparent}
   .cell.sel .check{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .cell .badge{position:absolute; left:6px; top:6px; background:var(--ok); color:#fff;
+        font-size:.68rem; font-weight:700; padding:2px 7px; border-radius:99px}
   .empty{color:var(--muted); text-align:center; padding:24px 0}
   footer{color:var(--muted); font-size:.78rem; text-align:center; margin-top:22px}
+  .link-btn{background:none; border:0; color:var(--accent); font-size:.8rem;
+        padding:0; margin-top:4px; cursor:pointer; text-align:left}
+
+  /* Reorder mode */
+  .rlist{list-style:none; margin:0; padding:0}
+  .ritem{display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line)}
+  .ritem:first-child{border-top:0}
+  .ritem .pos{width:26px; text-align:center; color:var(--muted); font-size:.85rem; font-weight:600}
+  .ritem .thumb{width:90px; height:54px}
+  .ritem .movers{margin-left:auto; display:flex; gap:6px}
+  .mv{width:42px; height:42px; border-radius:10px; border:1px solid var(--line);
+      background:#fff; font-size:1.1rem; cursor:pointer}
+  .mv[disabled]{opacity:.35; cursor:default}
+  .ritem .nextup{font-size:.68rem; font-weight:700; color:var(--ok)}
+
+  /* Settings */
+  .set-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-top:1px solid var(--line)}
+  .set-row:first-child{border-top:0}
+  .set-label{font-weight:600}
+  .set-help{color:var(--muted); font-size:.8rem; margin-top:2px}
+  select{font-size:1rem; padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#fff}
+  .switch{position:relative; width:52px; height:30px; flex:0 0 auto}
+  .switch input{opacity:0; width:0; height:0}
+  .slider-t{position:absolute; inset:0; background:#ccc; border-radius:99px; transition:.15s; cursor:pointer}
+  .slider-t:before{content:""; position:absolute; width:24px; height:24px; left:3px; top:3px;
+        background:#fff; border-radius:50%; transition:.15s}
+  .switch input:checked + .slider-t{background:var(--accent)}
+  .switch input:checked + .slider-t:before{transform:translateX(22px)}
+
+  /* Crop editor modal */
+  .modal{position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50;
+        display:flex; align-items:center; justify-content:center; padding:14px}
+  .modal[hidden]{display:none}
+  .modal-card{background:#fff; border-radius:14px; padding:14px; width:100%; max-width:520px}
+  .modal-card h2{font-size:1rem; margin:0 0 10px}
+  .crop-vp{position:relative; width:100%; aspect-ratio:5/3; overflow:hidden;
+        border-radius:10px; background:#222; touch-action:none; cursor:grab}
+  .crop-vp img{position:absolute; left:0; top:0; transform-origin:0 0;
+        max-width:none; user-select:none; -webkit-user-drag:none; pointer-events:none}
+  .zoom-row{display:flex; align-items:center; gap:10px; margin-top:12px}
+  .zoom-row input[type=range]{flex:1}
+  .modal-actions{display:flex; gap:10px}
+  .modal-actions .btn{margin-top:12px}
+
+  /* "Frame updating" overlay */
+  .overlay{position:fixed; inset:0; background:var(--bg); z-index:100;
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        text-align:center; padding:24px; gap:10px}
+  .overlay[hidden]{display:none}
+  .overlay .big{font-size:1.2rem; font-weight:700}
+  .overlay .note{color:var(--muted); max-width:340px}
 </style>
 </head>
 <body>
 <header>
   <h1>E-Ink Photo Frame</h1>
-  <div class="sub">Add photos — they're auto-fitted to 800×480 and sent to the frame.</div>
+  <div class="sub">Add photos — they're fitted to 800×480 and sent to the frame.</div>
 </header>
 
 <nav class="tabs">
   <button class="tab active" id="tabUpload">Upload</button>
   <button class="tab" id="tabManage">Manage</button>
+  <button class="tab" id="tabSettings">Settings</button>
 </nav>
 
 <section id="panelUpload">
@@ -108,15 +171,51 @@
 
 <section id="panelManage" hidden>
 <div class="card">
-  <div class="manage-bar">
+  <div class="manage-bar" id="manageBar">
     <button class="btn small ghost" id="selectAll">Select all</button>
     <button class="btn small ghost" id="refreshList">Refresh</button>
+    <button class="btn small ghost" id="reorderBtn">Reorder</button>
   </div>
   <div class="grid" id="grid"></div>
+  <ul class="rlist" id="rlist" hidden></ul>
   <div class="empty" id="empty" hidden>No photos on the frame yet.</div>
   <button class="btn" id="showSelected" disabled hidden>Show on frame</button>
   <button class="btn danger" id="delSelected" disabled>Delete selected</button>
   <button class="btn ghost danger" id="delAll" hidden>Delete all photos</button>
+  <button class="btn" id="saveOrder" hidden>Save order</button>
+  <button class="btn ghost" id="cancelOrder" hidden>Cancel</button>
+</div>
+</section>
+
+<section id="panelSettings" hidden>
+<div class="card">
+  <div class="set-row">
+    <div>
+      <div class="set-label">Auto-advance slideshow</div>
+      <div class="set-help">The frame wakes on its own and shows the next photo in the playlist.</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="setSlideshow">
+      <span class="slider-t"></span>
+    </label>
+  </div>
+  <div class="set-row">
+    <div>
+      <div class="set-label">Change photo every</div>
+      <div class="set-help">Shorter intervals use more battery — every change is a full wake + refresh.</div>
+    </div>
+    <select id="setInterval">
+      <option value="900">15 minutes</option>
+      <option value="1800">30 minutes</option>
+      <option value="3600" selected>1 hour</option>
+      <option value="10800">3 hours</option>
+      <option value="21600">6 hours</option>
+      <option value="43200">12 hours</option>
+      <option value="86400">24 hours</option>
+    </select>
+  </div>
+  <button class="btn" id="saveSettings">Save settings</button>
+  <div class="summary" id="settingsStatus" hidden></div>
 </div>
 </section>
 
@@ -124,6 +223,29 @@
   Connected to the frame's Wi-Fi. Keep this page open until uploads finish,
   then tap the frame to show the next photo.
 </footer>
+
+<!-- Crop editor -->
+<div class="modal" id="cropModal" hidden>
+  <div class="modal-card">
+    <h2>Adjust crop — drag to move, slide to zoom</h2>
+    <div class="crop-vp" id="cropVp"><img id="cropImg" alt=""></div>
+    <div class="zoom-row">
+      <span>🔍</span>
+      <input type="range" id="cropZoom" min="100" max="300" value="100">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="cropCancel">Cancel</button>
+      <button class="btn" id="cropApply">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shown while the frame reboots to display a photo -->
+<div class="overlay" id="updatingOverlay" hidden>
+  <div class="big">🖼️ The frame is updating…</div>
+  <div class="note">Its Wi-Fi network is turning off now — that's normal.
+  The new photo appears in a few seconds. You can close this page.</div>
+</div>
 
 <script>
 "use strict";
@@ -134,37 +256,46 @@ const queueEl = document.getElementById('queue');
 const sendBtn = document.getElementById('send');
 const summaryEl = document.getElementById('summary');
 const showBtn = document.getElementById('show');
+const updatingOverlay = document.getElementById('updatingOverlay');
 
-// Pending items: { blob, name, barFill, statusEl, done, failed }
+// Pending items: { file, blob, name, crop, thumbEl, barFill, statusEl, done, failed }
+// crop: null = automatic center-cover; else {z, fx, fy} (zoom factor, pan fractions)
 let items = [];
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
-// Crop+resize a photo to exactly 800x480 (cover fit) -> JPEG Blob.
-// Prefer createImageBitmap: it decodes/downscales without ever painting the
-// full-resolution image onto a canvas, and we close() the big bitmap right away.
-// The old Image+canvas path makes iOS Safari run out of RAM on ~12MP gallery
-// photos and silently kill the page (and the upload), while small screenshots
-// survive. We fall back to that legacy path only if createImageBitmap is missing.
-function processFile(file){
+// ---------------------------------------------------------------------------
+// Image processing: produce an 800x480 JPEG blob from a source file.
+// srcRect (natural pixels, optional) selects the region; default center-cover.
+// Prefer createImageBitmap: it decodes/downscales without painting the full-
+// resolution image onto a canvas (iOS Safari runs out of RAM on ~12MP photos
+// with the legacy path and silently kills the page).
+// ---------------------------------------------------------------------------
+function processFile(file, srcRect){
   if (typeof createImageBitmap === 'function'){
-    return processWithBitmap(file).catch(() => processWithImage(file));
+    return processWithBitmap(file, srcRect).catch(() => processWithImage(file, srcRect));
   }
-  return processWithImage(file);
+  return processWithImage(file, srcRect);
 }
 
-async function processWithBitmap(file){
-  // First decode just to read the source dimensions. ImageBitmap is GPU-backed
-  // and freed immediately via close(), so peak memory stays low.
+function coverRect(nw, nh){
+  const scale = Math.max(W / nw, H / nh);
+  const sw = Math.min(nw, Math.round(W / scale));
+  const sh = Math.min(nh, Math.round(H / scale));
+  return { sx: Math.max(0, Math.round((nw - sw) / 2)),
+           sy: Math.max(0, Math.round((nh - sh) / 2)), sw, sh };
+}
+
+function blobFromCanvas(canvas){
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error('encode failed')),
+                  'image/jpeg', JPEG_QUALITY));
+}
+
+async function processWithBitmap(file, srcRect){
   const src = await createImageBitmap(file);
-  const scale = Math.max(W / src.width, H / src.height);
-  // Source rectangle that, scaled by `scale`, exactly covers 800x480 (center crop).
-  const sw = Math.min(src.width,  Math.round(W / scale));
-  const sh = Math.min(src.height, Math.round(H / scale));
-  const sx = Math.max(0, Math.round((src.width  - sw) / 2));
-  const sy = Math.max(0, Math.round((src.height - sh) / 2));
-  // Second decode: crop to that rect AND downscale toward 800x480 in one step.
-  const fit = await createImageBitmap(src, sx, sy, sw, sh, {
+  const r = srcRect || coverRect(src.width, src.height);
+  const fit = await createImageBitmap(src, r.sx, r.sy, r.sw, r.sh, {
     resizeWidth: W, resizeHeight: H, resizeQuality: 'high'
   });
   src.close(); // release the full-resolution bitmap now
@@ -172,16 +303,12 @@ async function processWithBitmap(file){
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
-  // Draw with explicit 800x480 dest so output is correct even on browsers that
-  // ignore the resize options above.
   ctx.drawImage(fit, 0, 0, W, H);
   fit.close();
-  return await new Promise((resolve, reject) =>
-    canvas.toBlob(b => b ? resolve(b) : reject(new Error('encode failed')),
-                  'image/jpeg', JPEG_QUALITY));
+  return await blobFromCanvas(canvas);
 }
 
-function processWithImage(file){
+function processWithImage(file, srcRect){
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -189,17 +316,19 @@ function processWithImage(file){
       canvas.width = W; canvas.height = H;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
-      // cover fit: scale so the image fills 800x480, center-crop the overflow
-      const scale = Math.max(W / img.width, H / img.height);
-      const dw = img.width * scale, dh = img.height * scale;
-      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      const r = srcRect || coverRect(img.width, img.height);
+      ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, 0, 0, W, H);
+      URL.revokeObjectURL(img.src);
       canvas.toBlob(b => b ? resolve(b) : reject(new Error('encode failed')), 'image/jpeg', JPEG_QUALITY);
     };
-    img.onerror = () => reject(new Error('not an image'));
+    img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error('not an image')); };
     img.src = URL.createObjectURL(file);
   });
 }
 
+// ---------------------------------------------------------------------------
+// Upload queue
+// ---------------------------------------------------------------------------
 async function addFiles(fileList){
   for (const f of fileList){
     if (!f.type.startsWith('image/')) continue;
@@ -216,18 +345,22 @@ async function addFiles(fileList){
         '<div class="name"></div>' +
         '<div class="bar"><i></i></div>' +
         '<div class="status">ready</div>' +
+        '<button class="link-btn" type="button">✂️ Adjust crop</button>' +
       '</div>';
     const thumb = row.querySelector('.thumb');
     thumb.src = URL.createObjectURL(blob);
     row.querySelector('.name').textContent = f.name || (id + '.jpg');
     queueEl.appendChild(row);
 
-    items.push({
-      blob, name: 'img_' + id + '.jpg',
+    const item = {
+      file: f, blob, name: 'img_' + id + '.jpg', crop: null,
+      thumbEl: thumb,
       barFill: row.querySelector('.bar > i'),
       statusEl: row.querySelector('.status'),
       done: false, failed: false
-    });
+    };
+    row.querySelector('.link-btn').addEventListener('click', () => openCrop(item));
+    items.push(item);
   }
   sendBtn.disabled = items.every(i => i.done) || items.length === 0;
 }
@@ -296,12 +429,16 @@ function refreshSummary(){
   showBtn.hidden = ok === 0;
 }
 
+// The firmware answers, waits a short grace period so this response lands,
+// then cleanly shuts the AP down and reboots into the image path.
+function triggerFrameUpdate(url){
+  updatingOverlay.hidden = false;
+  fetch(url, { method: url === '/api/done' ? 'GET' : 'POST' }).catch(() => {});
+}
+
 showBtn.addEventListener('click', () => {
   showBtn.disabled = true;
-  showBtn.textContent = 'Updating the frame…';
-  // The frame reboots to display the newest photo, which drops this connection,
-  // so the request usually never resolves — that's expected, ignore any error.
-  fetch('/api/done').catch(() => {});
+  triggerFrameUpdate('/api/done');
 });
 
 fileInput.addEventListener('change', () => addFiles(fileInput.files));
@@ -313,30 +450,164 @@ sendBtn.addEventListener('click', sendAll);
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
 drop.addEventListener('drop', e => { if (e.dataTransfer) addFiles(e.dataTransfer.files); });
 
-// ---- Manage tab: view + multi-select delete of photos already on the frame ----
+// ---------------------------------------------------------------------------
+// Crop editor. The viewport is a 5:3 window; the image is panned/zoomed under
+// it with CSS transforms, and Apply converts the on-screen window back into a
+// source rectangle in natural pixels for re-encoding.
+// State: k0 = cover scale (fills viewport at zoom 1), z = user zoom >= 1,
+// k = k0*z, (tx,ty) = translation. Source rect: sx=-tx/k, sw=vpWidth/k.
+// ---------------------------------------------------------------------------
+const cropModal = document.getElementById('cropModal');
+const cropVp = document.getElementById('cropVp');
+const cropImg = document.getElementById('cropImg');
+const cropZoom = document.getElementById('cropZoom');
+const cropCancel = document.getElementById('cropCancel');
+const cropApply = document.getElementById('cropApply');
+let cs = null;   // current crop session
+
+function csApplyTransform(){
+  cropImg.style.transform = 'translate(' + cs.tx + 'px,' + cs.ty + 'px) scale(' + cs.k + ')';
+}
+
+function csClamp(){
+  const minTx = cs.vw - cs.nw * cs.k, minTy = cs.vh - cs.nh * cs.k;
+  cs.tx = Math.min(0, Math.max(minTx, cs.tx));
+  cs.ty = Math.min(0, Math.max(minTy, cs.ty));
+}
+
+function openCrop(item){
+  const url = URL.createObjectURL(item.file);
+  cropImg.onload = () => {
+    // The modal must be visible BEFORE measuring the viewport: a display:none
+    // element reports a 0x0 bounding rect and the math collapses.
+    cropModal.hidden = false;
+    const rect = cropVp.getBoundingClientRect();
+    const vw = rect.width, vh = rect.height;
+    const nw = cropImg.naturalWidth, nh = cropImg.naturalHeight;
+    cropImg.style.width = nw + 'px';   // 1 CSS px == 1 natural px before scale
+    const k0 = Math.max(vw / nw, vh / nh);
+    const z = item.crop ? item.crop.z : 1;
+    cs = { item, url, vw, vh, nw, nh, k0, z, k: k0 * z, tx: 0, ty: 0, drag: null };
+    // Restore pan as fractions of the scrollable range, default centered.
+    const fx = item.crop ? item.crop.fx : 0.5;
+    const fy = item.crop ? item.crop.fy : 0.5;
+    cs.tx = (vw - nw * cs.k) * fx;
+    cs.ty = (vh - nh * cs.k) * fy;
+    csClamp();
+    cropZoom.value = Math.round(z * 100);
+    csApplyTransform();
+  };
+  cropImg.src = url;
+}
+
+function closeCrop(){
+  cropModal.hidden = true;
+  if (cs){ URL.revokeObjectURL(cs.url); cropImg.src = ''; cs = null; }
+}
+
+cropVp.addEventListener('pointerdown', e => {
+  if (!cs) return;
+  cs.drag = { x: e.clientX, y: e.clientY, tx: cs.tx, ty: cs.ty };
+  cropVp.setPointerCapture(e.pointerId);
+});
+cropVp.addEventListener('pointermove', e => {
+  if (!cs || !cs.drag) return;
+  cs.tx = cs.drag.tx + (e.clientX - cs.drag.x);
+  cs.ty = cs.drag.ty + (e.clientY - cs.drag.y);
+  csClamp();
+  csApplyTransform();
+});
+['pointerup','pointercancel'].forEach(ev =>
+  cropVp.addEventListener(ev, () => { if (cs) cs.drag = null; }));
+
+cropZoom.addEventListener('input', () => {
+  if (!cs) return;
+  const zNew = cropZoom.value / 100;
+  const kNew = cs.k0 * zNew;
+  // Keep the viewport center anchored while zooming.
+  cs.tx = cs.vw / 2 - (cs.vw / 2 - cs.tx) * (kNew / cs.k);
+  cs.ty = cs.vh / 2 - (cs.vh / 2 - cs.ty) * (kNew / cs.k);
+  cs.z = zNew; cs.k = kNew;
+  csClamp();
+  csApplyTransform();
+});
+
+cropCancel.addEventListener('click', closeCrop);
+
+cropApply.addEventListener('click', async () => {
+  if (!cs) return;
+  const item = cs.item;
+  // On-screen window -> source rect in natural pixels.
+  const sx = Math.max(0, -cs.tx / cs.k);
+  const sy = Math.max(0, -cs.ty / cs.k);
+  const sw = Math.min(cs.nw - sx, cs.vw / cs.k);
+  const sh = Math.min(cs.nh - sy, cs.vh / cs.k);
+  // Remember UI state so reopening the editor restores the same view.
+  const rangeX = cs.vw - cs.nw * cs.k, rangeY = cs.vh - cs.nh * cs.k;
+  item.crop = {
+    z: cs.z,
+    fx: rangeX ? cs.tx / rangeX : 0.5,
+    fy: rangeY ? cs.ty / rangeY : 0.5
+  };
+  cropApply.disabled = true;
+  try {
+    const blob = await processFile(item.file, { sx: Math.round(sx), sy: Math.round(sy),
+                                                sw: Math.round(sw), sh: Math.round(sh) });
+    item.blob = blob;
+    item.thumbEl.src = URL.createObjectURL(blob);
+    if (item.done){
+      // Re-cropped after upload: needs to be sent again (same name overwrites).
+      item.done = false;
+      item.statusEl.textContent = 'crop changed — send again';
+      item.statusEl.className = 'status';
+      item.barFill.style.width = '0';
+      sendBtn.disabled = false;
+    }
+  } catch(e){ /* keep the previous blob */ }
+  cropApply.disabled = false;
+  closeCrop();
+  refreshSummary();
+});
+
+// ---------------------------------------------------------------------------
+// Manage tab: view, multi-select delete, show one, reorder
+// ---------------------------------------------------------------------------
 const tabUpload = document.getElementById('tabUpload');
 const tabManage = document.getElementById('tabManage');
+const tabSettings = document.getElementById('tabSettings');
 const panelUpload = document.getElementById('panelUpload');
 const panelManage = document.getElementById('panelManage');
+const panelSettings = document.getElementById('panelSettings');
 const grid = document.getElementById('grid');
+const rlist = document.getElementById('rlist');
 const emptyEl = document.getElementById('empty');
+const manageBar = document.getElementById('manageBar');
 const selectAllBtn = document.getElementById('selectAll');
 const refreshBtn = document.getElementById('refreshList');
+const reorderBtn = document.getElementById('reorderBtn');
 const delSelectedBtn = document.getElementById('delSelected');
 const delAllBtn = document.getElementById('delAll');
 const showSelectedBtn = document.getElementById('showSelected');
-let files = [];
+const saveOrderBtn = document.getElementById('saveOrder');
+const cancelOrderBtn = document.getElementById('cancelOrder');
 const selected = new Set();
+let playlist = [];      // current server order
+let cursor = -1;        // index of the photo that shows on the next wake
+let orderDraft = [];    // working copy while reordering
 
-function showTab(manage){
-  tabManage.classList.toggle('active', manage);
-  tabUpload.classList.toggle('active', !manage);
-  panelManage.hidden = !manage;
-  panelUpload.hidden = manage;
-  if (manage) loadList();
+function showTab(which){
+  tabUpload.classList.toggle('active', which === 'upload');
+  tabManage.classList.toggle('active', which === 'manage');
+  tabSettings.classList.toggle('active', which === 'settings');
+  panelUpload.hidden = which !== 'upload';
+  panelManage.hidden = which !== 'manage';
+  panelSettings.hidden = which !== 'settings';
+  if (which === 'manage') loadList();
+  if (which === 'settings') loadSettings();
 }
-tabUpload.addEventListener('click', () => showTab(false));
-tabManage.addEventListener('click', () => showTab(true));
+tabUpload.addEventListener('click', () => showTab('upload'));
+tabManage.addEventListener('click', () => showTab('manage'));
+tabSettings.addEventListener('click', () => showTab('settings'));
 
 function updateDeleteBar(){
   const n = selected.size;
@@ -350,24 +621,33 @@ async function loadList(){
   grid.innerHTML = '';
   selected.clear();
   updateDeleteBar();
-  let files = [];
+  playlist = []; cursor = -1;
   try {
     const r = await fetch('/api/list');
-    files = await r.json();
+    const j = await r.json();
+    if (Array.isArray(j)) { playlist = j; }           // tolerate old firmware
+    else { playlist = j.images || []; cursor = (typeof j.cursor === 'number') ? j.cursor : -1; }
   } catch(e){ /* show empty state below */ }
-  emptyEl.hidden = files.length > 0;
-  delAllBtn.hidden = files.length === 0;
-  for (const path of files){
+  emptyEl.hidden = playlist.length > 0;
+  delAllBtn.hidden = playlist.length === 0;
+  reorderBtn.disabled = playlist.length < 2;
+  playlist.forEach((path, idx) => {
     const cell = document.createElement('div');
     cell.className = 'cell';
     cell.dataset.path = path;
     const img = document.createElement('img');
     img.loading = 'lazy';
     img.src = path; // served from LittleFS under /img
+    cell.appendChild(img);
+    if (idx === cursor){
+      const badge = document.createElement('div');
+      badge.className = 'badge';
+      badge.textContent = 'NEXT UP';
+      cell.appendChild(badge);
+    }
     const check = document.createElement('div');
     check.className = 'check';
     check.textContent = '✓';
-    cell.appendChild(img);
     cell.appendChild(check);
     cell.addEventListener('click', () => {
       if (selected.has(path)) selected.delete(path); else selected.add(path);
@@ -375,7 +655,7 @@ async function loadList(){
       updateDeleteBar();
     });
     grid.appendChild(cell);
-  }
+  });
 }
 
 selectAllBtn.addEventListener('click', () => {
@@ -404,25 +684,130 @@ async function deletePaths(paths){
 }
 
 delSelectedBtn.addEventListener('click', () => {
-  const n = selected.size;
-  if (!n) return;
+  if (!selected.size) return;
   deletePaths([...selected]);
 });
 
-showSelectedBtn.addEventListener('click', async () => {
+showSelectedBtn.addEventListener('click', () => {
   if (selected.size !== 1) return;
   const path = [...selected][0];
   showSelectedBtn.disabled = true;
-  showSelectedBtn.textContent = 'Updating...';
-  try {
-    await fetch('/api/show?file=' + encodeURIComponent(path), { method: 'POST' });
-  } catch(e) {}
+  triggerFrameUpdate('/api/show?file=' + encodeURIComponent(path));
 });
 
 delAllBtn.addEventListener('click', () => {
   const all = [...grid.children].map(c => c.dataset.path);
   if (!all.length) return;
   deletePaths(all);
+});
+
+// ---- Reorder mode -----------------------------------------------------------
+function setReorderMode(on){
+  grid.hidden = on;
+  rlist.hidden = !on;
+  manageBar.hidden = on;
+  delSelectedBtn.hidden = on;
+  delAllBtn.hidden = on || playlist.length === 0;
+  showSelectedBtn.hidden = true;
+  saveOrderBtn.hidden = !on;
+  cancelOrderBtn.hidden = !on;
+  if (on) renderOrderDraft();
+}
+
+function renderOrderDraft(){
+  rlist.innerHTML = '';
+  orderDraft.forEach((path, idx) => {
+    const li = document.createElement('li');
+    li.className = 'ritem';
+    const pos = document.createElement('div');
+    pos.className = 'pos';
+    pos.textContent = (idx + 1);
+    const img = document.createElement('img');
+    img.className = 'thumb';
+    img.loading = 'lazy';
+    img.src = path;
+    const movers = document.createElement('div');
+    movers.className = 'movers';
+    const up = document.createElement('button');
+    up.className = 'mv'; up.textContent = '▲'; up.disabled = idx === 0;
+    const down = document.createElement('button');
+    down.className = 'mv'; down.textContent = '▼'; down.disabled = idx === orderDraft.length - 1;
+    up.addEventListener('click', () => {
+      [orderDraft[idx - 1], orderDraft[idx]] = [orderDraft[idx], orderDraft[idx - 1]];
+      renderOrderDraft();
+    });
+    down.addEventListener('click', () => {
+      [orderDraft[idx + 1], orderDraft[idx]] = [orderDraft[idx], orderDraft[idx + 1]];
+      renderOrderDraft();
+    });
+    movers.appendChild(up); movers.appendChild(down);
+    li.appendChild(pos); li.appendChild(img);
+    if (playlist[cursor] === path){
+      const tag = document.createElement('span');
+      tag.className = 'nextup';
+      tag.textContent = 'NEXT UP';
+      li.appendChild(tag);
+    }
+    li.appendChild(movers);
+    rlist.appendChild(li);
+  });
+}
+
+reorderBtn.addEventListener('click', () => {
+  orderDraft = [...playlist];
+  setReorderMode(true);
+});
+
+cancelOrderBtn.addEventListener('click', () => setReorderMode(false));
+
+saveOrderBtn.addEventListener('click', async () => {
+  saveOrderBtn.disabled = true;
+  try {
+    await fetch('/api/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderDraft)
+    });
+  } catch(e){ /* reload below shows the real state either way */ }
+  saveOrderBtn.disabled = false;
+  setReorderMode(false);
+  await loadList();
+});
+
+// ---------------------------------------------------------------------------
+// Settings tab
+// ---------------------------------------------------------------------------
+const setSlideshow = document.getElementById('setSlideshow');
+const setInterval_ = document.getElementById('setInterval');
+const saveSettingsBtn = document.getElementById('saveSettings');
+const settingsStatus = document.getElementById('settingsStatus');
+
+async function loadSettings(){
+  settingsStatus.hidden = true;
+  try {
+    const r = await fetch('/api/settings');
+    const j = await r.json();
+    setSlideshow.checked = !!j.slideshow;
+    // Snap to the nearest preset at or above the stored value.
+    const opts = [...setInterval_.options].map(o => +o.value);
+    const v = +j.interval_sec || 3600;
+    setInterval_.value = String(opts.find(o => o >= v) || opts[opts.length - 1]);
+  } catch(e){ /* leave defaults */ }
+}
+
+saveSettingsBtn.addEventListener('click', async () => {
+  saveSettingsBtn.disabled = true;
+  let ok = false;
+  try {
+    const q = '/api/settings?slideshow=' + (setSlideshow.checked ? 1 : 0) +
+              '&interval_sec=' + setInterval_.value;
+    const r = await fetch(q, { method: 'POST' });
+    ok = r.ok;
+  } catch(e){}
+  saveSettingsBtn.disabled = false;
+  settingsStatus.hidden = false;
+  settingsStatus.textContent = ok ? 'Saved ✓' : 'Save failed — try again';
+  settingsStatus.className = 'summary ' + (ok ? 'ok' : 'err');
 });
 </script>
 </body>

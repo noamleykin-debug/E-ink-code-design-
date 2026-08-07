@@ -7,6 +7,62 @@ namespace Storage {
 
 static int s_cursor = 0;
 static std::vector<String> s_playlist;
+static Settings s_settings = { SLIDESHOW_DEFAULT_ENABLED, SLIDESHOW_DEFAULT_SEC };
+
+static void clampSettings(Settings& s) {
+    if (s.slideshowIntervalSec < SLIDESHOW_MIN_SEC) s.slideshowIntervalSec = SLIDESHOW_MIN_SEC;
+    if (s.slideshowIntervalSec > SLIDESHOW_MAX_SEC) s.slideshowIntervalSec = SLIDESHOW_MAX_SEC;
+}
+
+static bool saveSettings() {
+    JsonDocument doc;
+    doc["slideshow"] = s_settings.slideshowEnabled;
+    doc["interval_sec"] = s_settings.slideshowIntervalSec;
+
+    String tempPath = String(FS_SETTINGS_PATH) + ".tmp";
+    File file = LittleFS.open(tempPath, "w");
+    if (!file) {
+        log_e("Failed to open temp settings for writing");
+        return false;
+    }
+    if (serializeJson(doc, file) == 0) {
+        log_e("Failed to write settings JSON");
+        file.close();
+        return false;
+    }
+    file.close();
+
+    // Atomic rename, same pattern as the playlist
+    if (!LittleFS.rename(tempPath, FS_SETTINGS_PATH)) {
+        log_e("Failed to rename temp settings");
+        return false;
+    }
+    log_i("Settings saved: slideshow=%d interval=%u s",
+          (int)s_settings.slideshowEnabled, (unsigned)s_settings.slideshowIntervalSec);
+    return true;
+}
+
+static void loadSettings() {
+    s_settings = { SLIDESHOW_DEFAULT_ENABLED, SLIDESHOW_DEFAULT_SEC };
+
+    File file = LittleFS.open(FS_SETTINGS_PATH, "r");
+    if (!file) {
+        log_i("No settings file, using defaults");
+        return;
+    }
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+    if (error) {
+        log_w("Settings JSON corrupt (%s), using defaults", error.c_str());
+        return;
+    }
+    s_settings.slideshowEnabled = doc["slideshow"] | SLIDESHOW_DEFAULT_ENABLED;
+    s_settings.slideshowIntervalSec = doc["interval_sec"] | (uint32_t)SLIDESHOW_DEFAULT_SEC;
+    clampSettings(s_settings);
+    log_i("Settings loaded: slideshow=%d interval=%u s",
+          (int)s_settings.slideshowEnabled, (unsigned)s_settings.slideshowIntervalSec);
+}
 
 static bool savePlaylist() {
     // Using ArduinoJson v7 elastic JsonDocument
@@ -66,6 +122,8 @@ bool init() {
         LittleFS.mkdir(FS_IMAGE_DIR);
     }
 
+    loadSettings();
+
     File file = LittleFS.open(FS_PLAYLIST_PATH, "r");
     if (!file) {
         log_w("Playlist not found, starting fresh");
@@ -96,7 +154,7 @@ bool init() {
     }
 
     clampCursor();
-    
+
     log_i("Storage init: %u images loaded, cursor at %d", (unsigned)s_playlist.size(), s_cursor);
     return true;
 }
@@ -131,22 +189,76 @@ bool addImage(const String& filename) {
 
 bool removeImage(const String& filename) {
     bool found = false;
-    for (auto it = s_playlist.begin(); it != s_playlist.end(); ) {
-        if (*it == filename) {
-            it = s_playlist.erase(it);
+    // Iterate backwards so erasing doesn't shift the indices still to visit,
+    // and shift the cursor down for every removed entry in front of it so it
+    // keeps pointing at the same upcoming image.
+    for (int i = (int)s_playlist.size() - 1; i >= 0; i--) {
+        if (s_playlist[i] == filename) {
+            s_playlist.erase(s_playlist.begin() + i);
             found = true;
-        } else {
-            ++it;
+            if (i < s_cursor) s_cursor--;
         }
     }
-    
+
     if (found) {
         // In case removal makes cursor out of bounds
         clampCursor();
         savePlaylist();
     }
-    
+
     return found;
+}
+
+bool reorder(const std::vector<String>& newOrder) {
+    // Remember which image the cursor points at so the reorder doesn't change
+    // what shows on the next wake.
+    String current = (s_cursor >= 0 && s_cursor < (int)s_playlist.size())
+                         ? s_playlist[s_cursor] : String();
+
+    auto contains = [](const std::vector<String>& v, const String& s) {
+        for (const String& e : v) if (e == s) return true;
+        return false;
+    };
+
+    std::vector<String> rebuilt;
+    rebuilt.reserve(s_playlist.size());
+
+    // Take the client's order, but only entries that actually exist in the
+    // current playlist (drops stale/foreign paths), deduplicated.
+    for (const String& p : newOrder) {
+        if (contains(s_playlist, p) && !contains(rebuilt, p)) {
+            rebuilt.push_back(p);
+        }
+    }
+    // Append anything the client didn't know about (e.g. a photo uploaded
+    // after the UI fetched the list) so nothing silently disappears.
+    for (const String& p : s_playlist) {
+        if (!contains(rebuilt, p)) {
+            rebuilt.push_back(p);
+        }
+    }
+
+    s_playlist = rebuilt;
+
+    s_cursor = 0;
+    if (!current.isEmpty()) {
+        for (size_t i = 0; i < s_playlist.size(); i++) {
+            if (s_playlist[i] == current) { s_cursor = (int)i; break; }
+        }
+    }
+    clampCursor();
+
+    return savePlaylist();
+}
+
+Settings getSettings() {
+    return s_settings;
+}
+
+bool setSettings(const Settings& s) {
+    s_settings = s;
+    clampSettings(s_settings);
+    return saveSettings();
 }
 
 void jumpToLast() {
