@@ -129,6 +129,12 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 #define SLIDESHOW_MIN_SEC           (5UL * 60UL)            // 5 minute floor
 #define SLIDESHOW_MAX_SEC           MANDATORY_REFRESH_SEC
 
+// Dither algorithm (user-selectable in the web-app Settings tab):
+//   0 = Floyd-Steinberg (crisper, classic)
+//   1 = Atkinson (softer, cleaner flat areas)
+#define DITHER_MODE_DEFAULT         0
+#define DITHER_MODE_MAX             1
+
 // ----------------------------------------------------------------------------
 //  Networking — SoftAP captive portal
 // ----------------------------------------------------------------------------

@@ -10,6 +10,7 @@ namespace Storage {
 struct Settings {
     bool slideshowEnabled;
     uint32_t slideshowIntervalSec;   // clamped to [SLIDESHOW_MIN_SEC, SLIDESHOW_MAX_SEC]
+    uint8_t ditherMode;              // Dither::DitherMode value, clamped to [0, DITHER_MODE_MAX]
 };
 
 // Initialize LittleFS and load the playlist + settings

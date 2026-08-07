@@ -23,7 +23,7 @@ Built around an ESP32-S3 and a 7.3" Spectra 6 e-paper panel. Tap the frame and i
 - **In-browser crop editor.** Drag and zoom each photo inside a fixed 5:3 window; the browser produces an exact 800×480 JPEG so the firmware never guesses.
 - **Full playlist control.** Reorder photos, delete them, jump to any photo, and see which one is "next up".
 - **Slideshow mode.** Optional auto-advance at a user-chosen interval (5 min to 24 h), enforced in firmware to protect the panel and battery.
-- **6-color dithering on-device.** Floyd-Steinberg error diffusion with serpentine scanning quantizes full-color JPEGs to the panel's black/white/red/green/blue/yellow palette.
+- **6-color dithering on-device.** Serpentine error diffusion quantizes full-color JPEGs to the panel's black/white/red/green/blue/yellow palette, with two selectable styles: classic Floyd-Steinberg or the softer Atkinson.
 - **Crash-safe storage.** Playlist and settings are written atomically (temp file + rename), and the filesystem is never auto-formatted, so a transient mount error can't wipe the gallery.
 
 ## Hardware

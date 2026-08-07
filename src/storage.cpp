@@ -7,17 +7,19 @@ namespace Storage {
 
 static int s_cursor = 0;
 static std::vector<String> s_playlist;
-static Settings s_settings = { SLIDESHOW_DEFAULT_ENABLED, SLIDESHOW_DEFAULT_SEC };
+static Settings s_settings = { SLIDESHOW_DEFAULT_ENABLED, SLIDESHOW_DEFAULT_SEC, DITHER_MODE_DEFAULT };
 
 static void clampSettings(Settings& s) {
     if (s.slideshowIntervalSec < SLIDESHOW_MIN_SEC) s.slideshowIntervalSec = SLIDESHOW_MIN_SEC;
     if (s.slideshowIntervalSec > SLIDESHOW_MAX_SEC) s.slideshowIntervalSec = SLIDESHOW_MAX_SEC;
+    if (s.ditherMode > DITHER_MODE_MAX) s.ditherMode = DITHER_MODE_DEFAULT;
 }
 
 static bool saveSettings() {
     JsonDocument doc;
     doc["slideshow"] = s_settings.slideshowEnabled;
     doc["interval_sec"] = s_settings.slideshowIntervalSec;
+    doc["dither"] = s_settings.ditherMode;
 
     String tempPath = String(FS_SETTINGS_PATH) + ".tmp";
     File file = LittleFS.open(tempPath, "w");
@@ -43,7 +45,7 @@ static bool saveSettings() {
 }
 
 static void loadSettings() {
-    s_settings = { SLIDESHOW_DEFAULT_ENABLED, SLIDESHOW_DEFAULT_SEC };
+    s_settings = { SLIDESHOW_DEFAULT_ENABLED, SLIDESHOW_DEFAULT_SEC, DITHER_MODE_DEFAULT };
 
     File file = LittleFS.open(FS_SETTINGS_PATH, "r");
     if (!file) {
@@ -59,6 +61,7 @@ static void loadSettings() {
     }
     s_settings.slideshowEnabled = doc["slideshow"] | SLIDESHOW_DEFAULT_ENABLED;
     s_settings.slideshowIntervalSec = doc["interval_sec"] | (uint32_t)SLIDESHOW_DEFAULT_SEC;
+    s_settings.ditherMode = doc["dither"] | (uint8_t)DITHER_MODE_DEFAULT;
     clampSettings(s_settings);
     log_i("Settings loaded: slideshow=%d interval=%u s",
           (int)s_settings.slideshowEnabled, (unsigned)s_settings.slideshowIntervalSec);

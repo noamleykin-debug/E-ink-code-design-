@@ -77,10 +77,13 @@ all of them.
 3. **Decode**: TJpg_Decoder streams the JPEG into a full-frame RGB565 buffer
    in PSRAM. Only exact 800×480 files are accepted (the web app guarantees
    this), and decode errors abort the refresh instead of painting garbage.
-4. **Dither**: Floyd-Steinberg error diffusion (weights 7/16, 3/16, 5/16,
-   1/16) quantizes each pixel to the nearest of the 6 panel colors. Rows
-   alternate scan direction (serpentine) to avoid directional "worm"
-   artifacts. Output is a packed 4-bit-per-pixel index buffer.
+4. **Dither**: error diffusion quantizes each pixel to the nearest of the 6
+   panel colors. Two user-selectable algorithms (Settings tab): classic
+   Floyd-Steinberg (weights 7/16, 3/16, 5/16, 1/16, all error kept) and
+   Atkinson (1/8 to six neighbors, 2/8 discarded, which keeps flat areas
+   free of stray speckles). Rows alternate scan direction (serpentine) in
+   both modes to avoid directional "worm" artifacts. Output is a packed
+   4-bit-per-pixel index buffer.
 5. **Paint**: GxEPD2 refreshes the panel in pages; the full frame stays in
    PSRAM while only a ~32 KB page buffer lives in internal RAM.
 6. **Sleep**: with a timer armed for the slideshow interval (if enabled) or
@@ -123,7 +126,7 @@ cannot feed a browser's default six-plus parallel connections.
 | File | Contents | Written |
 |---|---|---|
 | `/playlist.json` | Image list (display order) + cursor | On upload, delete, reorder, advance |
-| `/settings.json` | Slideshow enabled + interval | On settings save |
+| `/settings.json` | Slideshow enabled + interval, dither mode | On settings save |
 | `/img/*.jpg` | The photos, exactly 800×480 | On upload |
 | `/www/*` | Web app assets | By `pio run -t uploadfs` |
 

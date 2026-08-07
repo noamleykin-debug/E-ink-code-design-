@@ -49,13 +49,15 @@ same graceful reboot. Used by the upload tab after a batch upload.
 Returns the current settings and the firmware's interval floor:
 
 ```json
-{ "slideshow": false, "interval_sec": 3600, "interval_min_sec": 300 }
+{ "slideshow": false, "interval_sec": 3600, "interval_min_sec": 300, "dither": 0 }
 ```
 
-### `POST /api/settings?slideshow=<0|1>&interval_sec=<seconds>`
-Updates settings; both parameters are optional. The interval is clamped in
+### `POST /api/settings?slideshow=<0|1>&interval_sec=<seconds>&dither=<0|1>`
+Updates settings; all parameters are optional. The interval is clamped in
 firmware to `[SLIDESHOW_MIN_SEC, SLIDESHOW_MAX_SEC]` (5 minutes to 24 hours),
-so no client can set a panel-damaging refresh rate.
+so no client can set a panel-damaging refresh rate. `dither` selects the
+error-diffusion algorithm: `0` = Floyd-Steinberg (classic, crisper), `1` =
+Atkinson (softer, cleaner flat areas); it takes effect on the next refresh.
 
 ### `GET /api/ping`
 Heartbeat; returns 204. Any API call resets the portal's 3-minute inactivity
