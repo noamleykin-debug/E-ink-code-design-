@@ -114,7 +114,6 @@
   </div>
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" hidden>No photos on the frame yet.</div>
-  <button class="btn" id="showSelected" disabled hidden>Show on frame</button>
   <button class="btn danger" id="delSelected" disabled>Delete selected</button>
   <button class="btn ghost danger" id="delAll" hidden>Delete all photos</button>
 </div>
@@ -324,8 +323,6 @@ const selectAllBtn = document.getElementById('selectAll');
 const refreshBtn = document.getElementById('refreshList');
 const delSelectedBtn = document.getElementById('delSelected');
 const delAllBtn = document.getElementById('delAll');
-const showSelectedBtn = document.getElementById('showSelected');
-let files = [];
 const selected = new Set();
 
 function showTab(manage){
@@ -341,9 +338,7 @@ tabManage.addEventListener('click', () => showTab(true));
 function updateDeleteBar(){
   const n = selected.size;
   delSelectedBtn.disabled = n === 0;
-  delSelectedBtn.textContent = n > 0 ? 'Delete selected (' + n + ')' : 'Delete selected';
-  showSelectedBtn.hidden = n === 0;
-  showSelectedBtn.disabled = n !== 1;
+  delSelectedBtn.textContent = n ? 'Delete selected (' + n + ')' : 'Delete selected';
 }
 
 async function loadList(){
@@ -406,22 +401,14 @@ async function deletePaths(paths){
 delSelectedBtn.addEventListener('click', () => {
   const n = selected.size;
   if (!n) return;
+  if (!confirm('Delete ' + n + ' photo' + (n === 1 ? '' : 's') + ' from the frame?')) return;
   deletePaths([...selected]);
-});
-
-showSelectedBtn.addEventListener('click', async () => {
-  if (selected.size !== 1) return;
-  const path = [...selected][0];
-  showSelectedBtn.disabled = true;
-  showSelectedBtn.textContent = 'Updating...';
-  try {
-    await fetch('/api/show?file=' + encodeURIComponent(path), { method: 'POST' });
-  } catch(e) {}
 });
 
 delAllBtn.addEventListener('click', () => {
   const all = [...grid.children].map(c => c.dataset.path);
   if (!all.length) return;
+  if (!confirm('Delete ALL ' + all.length + ' photos from the frame? This cannot be undone.')) return;
   deletePaths(all);
 });
 </script>

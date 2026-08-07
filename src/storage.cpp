@@ -156,16 +156,6 @@ void jumpToLast() {
     }
 }
 
-void jumpTo(const String& filename) {
-    for (size_t i = 0; i < s_playlist.size(); i++) {
-        if (s_playlist[i] == filename) {
-            s_cursor = i;
-            savePlaylist();
-            break;
-        }
-    }
-}
-
 bool deleteImage(const String& filename) {
     // Erase the physical JPEG from flash, not just the playlist entry. A
     // playlist-only removal would orphan the file and slowly fill LittleFS.
