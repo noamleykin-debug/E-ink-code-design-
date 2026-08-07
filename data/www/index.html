@@ -250,6 +250,14 @@
 <script>
 "use strict";
 const W = 800, H = 480, JPEG_QUALITY = 0.9;
+
+// Keep-alive heartbeat: the firmware's inactivity watchdog only sees API
+// traffic, so ping while the page is open (and thus the user may come back).
+// When the page is closed / the phone locks, the pings stop and the portal
+// shuts itself down 3 minutes later as designed.
+setInterval(() => {
+  if (!document.hidden) fetch('/api/ping').catch(() => {});
+}, 30000);
 const fileInput = document.getElementById('file');
 const drop = document.getElementById('drop');
 const queueEl = document.getElementById('queue');
@@ -595,6 +603,37 @@ let playlist = [];      // current server order
 let cursor = -1;        // index of the photo that shows on the next wake
 let orderDraft = [];    // working copy while reordering
 
+// ---- Throttled thumbnail loader ---------------------------------------------
+// The frame serves full 800x480 JPEGs from slow flash over a tiny SoC — a
+// browser firing 6-12 parallel requests starves the connections and photos
+// never appear (or worse). Load them strictly TWO at a time via fetch->blob,
+// and cache the object URLs so tab switches and reorder mode don't re-hit
+// the frame at all.
+const thumbCache = new Map();   // path -> object URL
+let loadGen = 0;                // bumped on every list reload to cancel stale queues
+
+async function loadThumbsInto(pairs){   // pairs: [{path, img}]
+  const gen = ++loadGen;
+  const queue = pairs.filter(p => {
+    if (thumbCache.has(p.path)){ p.img.src = thumbCache.get(p.path); return false; }
+    return true;
+  });
+  const worker = async () => {
+    while (queue.length){
+      if (gen !== loadGen) return;          // a newer reload took over
+      const { path, img } = queue.shift();
+      try {
+        const r = await fetch(path);
+        if (!r.ok) continue;
+        const url = URL.createObjectURL(await r.blob());
+        thumbCache.set(path, url);
+        if (gen === loadGen) img.src = url;
+      } catch(e){ /* leave the grey placeholder */ }
+    }
+  };
+  await Promise.all([worker(), worker()]);
+}
+
 function showTab(which){
   tabUpload.classList.toggle('active', which === 'upload');
   tabManage.classList.toggle('active', which === 'manage');
@@ -631,13 +670,13 @@ async function loadList(){
   emptyEl.hidden = playlist.length > 0;
   delAllBtn.hidden = playlist.length === 0;
   reorderBtn.disabled = playlist.length < 2;
+  const thumbJobs = [];
   playlist.forEach((path, idx) => {
     const cell = document.createElement('div');
     cell.className = 'cell';
     cell.dataset.path = path;
     const img = document.createElement('img');
-    img.loading = 'lazy';
-    img.src = path; // served from LittleFS under /img
+    thumbJobs.push({ path, img });   // loaded 2-at-a-time below
     cell.appendChild(img);
     if (idx === cursor){
       const badge = document.createElement('div');
@@ -656,6 +695,7 @@ async function loadList(){
     });
     grid.appendChild(cell);
   });
+  loadThumbsInto(thumbJobs);   // fire-and-forget; fills thumbs as they arrive
 }
 
 selectAllBtn.addEventListener('click', () => {
@@ -676,7 +716,11 @@ async function deletePaths(paths){
   for (const path of paths){
     // One request per photo keeps the firmware endpoint trivial. Ignore individual
     // failures; the list reload afterwards reflects what's actually on the frame.
-    try { await fetch('/api/delete?file=' + encodeURIComponent(path), { method: 'POST' }); }
+    try {
+      await fetch('/api/delete?file=' + encodeURIComponent(path), { method: 'POST' });
+      const url = thumbCache.get(path);
+      if (url){ URL.revokeObjectURL(url); thumbCache.delete(path); }
+    }
     catch(e){ /* ignore */ }
   }
   delAllBtn.disabled = false;
@@ -724,8 +768,8 @@ function renderOrderDraft(){
     pos.textContent = (idx + 1);
     const img = document.createElement('img');
     img.className = 'thumb';
-    img.loading = 'lazy';
-    img.src = path;
+    // Reorder mode is entered from a loaded grid, so the cache has these.
+    if (thumbCache.has(path)) img.src = thumbCache.get(path);
     const movers = document.createElement('div');
     movers.className = 'movers';
     const up = document.createElement('button');

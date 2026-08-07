@@ -77,7 +77,11 @@ void setup() {
         }
         
         log_i("MAIN: PORTAL path finished. Entering deep sleep.");
-        Power::deepSleep(0); // Await physical touch
+        // Sleep with the same timer the image path uses: with the slideshow
+        // enabled the frame keeps advancing after a portal session (a bare
+        // deepSleep(0) here silently stopped the slideshow until the next
+        // touch), and either way the 24h mandatory refresh stays scheduled.
+        Power::deepSleep(image_sleep_sec());
     }
     
     // ==========================================
