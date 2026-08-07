@@ -13,6 +13,9 @@ bool init();
 String getNextImage();
 bool addImage(const String& filename);
 bool removeImage(const String& filename);
+bool deleteImage(const String& filename);
+void jumpToLast();
+void jumpTo(const String& filename);
 
 // Point the cursor at the newest image so the next getNextImage() returns it.
 // Used by the portal's optional "Show newest" action before a reboot.

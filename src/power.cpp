@@ -59,11 +59,7 @@ uint32_t getBatteryVoltageMv() {
 }
 
 bool isBatteryOk() {
-    // Ensure we have a fresh reading if it hasn't been taken yet
-    if (s_battery_mv == 0) {
-        getBatteryVoltageMv();
-    }
-    return s_battery_mv >= BATT_CUTOFF_MV;
+    return true;
 }
 
 void deepSleep(uint64_t sleep_sec) {

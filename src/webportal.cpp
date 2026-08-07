@@ -12,8 +12,8 @@ namespace WebPortal {
 
 static AsyncWebServer server(WEB_PORT);
 static DNSServer dnsServer;
-static uint32_t s_last_activity_ms = 0;
-static bool s_finished = false;
+static volatile uint32_t s_last_activity_ms = 0;
+static volatile bool s_finished = false;
 
 static void updateActivity() {
     s_last_activity_ms = millis();
@@ -168,7 +168,8 @@ void loop() {
     dnsServer.processNextRequest();
     
     // Inactivity Watchdog Evaluation
-    if (millis() - s_last_activity_ms > WIFI_WATCHDOG_MS) {
+    uint32_t now = millis();
+    if (now >= s_last_activity_ms && (now - s_last_activity_ms > WIFI_WATCHDOG_MS)) {
         log_i("Web Portal Watchdog: Inactivity timeout. Shutting down.");
         s_finished = true;
         
