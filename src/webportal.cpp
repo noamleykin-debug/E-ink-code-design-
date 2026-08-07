@@ -114,6 +114,25 @@ void init() {
         ESP.restart();
     });
 
+    server.on("/api/show", HTTP_POST, [](AsyncWebServerRequest *request) {
+        updateActivity();
+        if (!request->hasParam("file")) {
+            request->send(400, "text/plain", "missing file");
+            return;
+        }
+        String f = request->getParam("file")->value();
+        String prefix = String(FS_IMAGE_DIR) + "/";
+        if (!f.startsWith(prefix) || f.indexOf("..") >= 0) {
+            request->send(400, "text/plain", "bad path");
+            return;
+        }
+        log_i("Web Portal: Show specific photo requested (%s). Rebooting.", f.c_str());
+        Storage::jumpTo(f);
+        request->send(200, "text/plain", "OK");
+        delay(300);
+        ESP.restart();
+    });
+
     // Manage tab: list stored photos as a JSON array for the thumbnail grid.
     server.on("/api/list", HTTP_GET, [](AsyncWebServerRequest *request) {
         updateActivity();

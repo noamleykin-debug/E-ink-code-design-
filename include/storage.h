@@ -17,13 +17,6 @@ bool deleteImage(const String& filename);
 void jumpToLast();
 void jumpTo(const String& filename);
 
-// Point the cursor at the newest image so the next getNextImage() returns it.
-// Used by the portal's optional "Show newest" action before a reboot.
-void jumpToLast();
-
-// Delete an image: erases both the JPEG from flash and its playlist entry.
-bool deleteImage(const String& filename);
-
 // Accessors for external use (UI/debugging)
 int getCursor();
 std::vector<String> getPlaylist();

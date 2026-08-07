@@ -93,24 +93,6 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 };
 
 // ----------------------------------------------------------------------------
-//  Dither tuning (perceptual look — safe to adjust to taste)
-//
-//  A 6-color panel has no intermediate tones, so light areas quantize to lots
-//  of white with sparse colored dots ("holes"). These knobs push more pixels
-//  toward a colored choice and even out the texture. Values are percentages
-//  where 100 = no change. Defaults below are a "vivid / punchy" starting point.
-// ----------------------------------------------------------------------------
-#define DITHER_SERPENTINE       1     // 1 = alternate scan direction each row
-#define DITHER_SATURATION       150   // >100 boosts color; fills white holes
-#define DITHER_CONTRAST         112   // >100 deepens shadows/highlights
-// Perceptual channel weights for the nearest-color search (relative, ~luma).
-// Green carries most apparent brightness, blue the least. Equal {16,16,16}
-// reproduces the old unweighted Euclidean match.
-#define DITHER_W_R              12
-#define DITHER_W_G              16
-#define DITHER_W_B              6
-
-// ----------------------------------------------------------------------------
 //  Timing & power policy
 //
 //  TRAP: cross-sleep timing (panel lockout) MUST use RTC-domain time
