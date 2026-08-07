@@ -1,6 +1,6 @@
 # 🖼️ E-Ink Photo Frame
 
-**A battery-powered, 6-color e-paper photo frame you control from your phone — no app, no cloud, no account.**
+**A battery-powered, 6-color e-paper photo frame you control from your phone: no app, no cloud, no account.**
 
 Built around an ESP32-S3 and a 7.3" Spectra 6 e-paper panel. Tap the frame, it wakes from deep sleep, paints the next photo, and goes back to sleep — sipping essentially zero power while the picture stays on the screen indefinitely.
 
