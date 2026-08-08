@@ -114,7 +114,13 @@ static const RgbRef EPD_PALETTE[COL_COUNT] = {
 #define MANDATORY_REFRESH_SEC   (24UL * 60UL * 60UL)
 
 // Wi-Fi / captive-portal session auto-shutdown (millis is fine here).
-#define WIFI_WATCHDOG_MS        (3UL * 60UL * 1000UL)   // 3 minutes
+#define WIFI_WATCHDOG_MS        (3UL * 60UL * 1000UL)   // 3 min of inactivity
+
+// Absolute ceiling on a portal session, activity or not. Guarantees the frame
+// always returns to deep sleep (re-arming the slideshow/mandatory-refresh
+// timer) even if something keeps generating traffic. Re-tap the Wi-Fi pad to
+// start a fresh session.
+#define PORTAL_MAX_SESSION_MS   (30UL * 60UL * 1000UL)  // 30 minutes
 
 // Grace period between answering an /api/done | /api/show request and the
 // actual reboot, so the HTTP response reaches the phone and the page can show

@@ -113,8 +113,14 @@ Waking with the Wi-Fi pad starts an open SoftAP (`EinkFrame-Setup`) with:
 - **The JSON API**: see [`API.md`](API.md).
 
 Session lifetime: an inactivity watchdog closes the portal after 3 minutes.
-The web app sends a heartbeat (`/api/ping`) every 30 s while open, so the
-watchdog only fires once the user actually leaves. Stored photos are served
+Only deliberate `/api/*` traffic counts as activity; the web app sends a
+heartbeat (`/api/ping`) every 30 s while open, so the watchdog fires once the
+user actually leaves. The OS probe routes and the wildcard redirect are
+deliberately excluded, because an associated phone re-fires probes in the
+background indefinitely and would otherwise hold the portal open all night,
+never letting the frame sleep and re-arm its slideshow timer. A hard 30-minute
+session cap (`PORTAL_MAX_SESSION_MS`) backs this up: no traffic pattern can
+keep the frame out of deep sleep past it. Stored photos are served
 with long cache headers (filenames are unique per upload) and the web app
 throttles thumbnail loading to two concurrent requests, because LittleFS
 cannot feed a browser's default six-plus parallel connections.

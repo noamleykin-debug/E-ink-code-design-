@@ -13,6 +13,7 @@ namespace WebPortal {
 static AsyncWebServer server(WEB_PORT);
 static DNSServer dnsServer;
 static volatile uint32_t s_last_activity_ms = 0;
+static uint32_t s_session_start_ms = 0;
 static volatile bool s_finished = false;
 
 // Deferred-reboot machinery. HTTP handlers run on the AsyncTCP task, so they
@@ -113,17 +114,22 @@ void init() {
     dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
     dnsServer.start(DNS_PORT, "*", ip);
     
-    // Core OS captive portal probes
+    // Core OS captive portal probes.
+    //
+    // Deliberately NOT counted as activity: phone OSes re-fire these probes
+    // in the background for as long as they stay associated with the AP. A
+    // phone parked next to the frame overnight would reset the watchdog
+    // forever, keeping the portal awake and, since deepSleep() is never
+    // reached, silently disabling the slideshow timer. Only deliberate app
+    // traffic (the /api/* routes, including the page's ping heartbeat)
+    // counts as activity.
     server.on("/generate_204", HTTP_GET, [](AsyncWebServerRequest *request) {
-        updateActivity();
         request->send(204);
     });
     server.on("/hotspot-detect.html", HTTP_GET, [](AsyncWebServerRequest *request) {
-        updateActivity();
         request->redirect("/");
     });
     server.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) {
-        updateActivity();
         request->send(200, "text/plain", "Microsoft Connect Test");
     });
     
@@ -297,15 +303,16 @@ void init() {
         request->send(ok ? 200 : 500, "text/plain", ok ? "deleted" : "error");
     });
     
-    // Fallback trap
+    // Fallback trap. Also not activity: wildcard DNS funnels every stray
+    // background request from any associated device here.
     server.onNotFound([](AsyncWebServerRequest *request) {
-        updateActivity();
         request->redirect("/");
     });
 
     server.begin();
     
     updateActivity();
+    s_session_start_ms = millis();
     s_finished = false;
     s_reboot_pending = false;
     log_i("Web Portal initialized. IP: %s", WiFi.softAPIP().toString().c_str());
@@ -331,6 +338,16 @@ void loop() {
     uint32_t now = millis();
     if (now >= s_last_activity_ms && (now - s_last_activity_ms > WIFI_WATCHDOG_MS)) {
         log_i("Web Portal Watchdog: Inactivity timeout. Shutting down.");
+        s_finished = true;
+        shutdownPortal();
+        return;
+    }
+
+    // Hard session cap: no amount of traffic may keep the portal open past
+    // this ceiling. This is the guarantee that the frame always gets back to
+    // deep sleep and re-arms its slideshow / 24h-refresh timer.
+    if (now - s_session_start_ms > PORTAL_MAX_SESSION_MS) {
+        log_i("Web Portal: Session cap reached. Shutting down.");
         s_finished = true;
         shutdownPortal();
     }
