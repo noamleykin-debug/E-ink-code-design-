@@ -1,16 +1,24 @@
 # Images for the main README
 
-Drop the photos referenced by the root `README.md` here:
+| File | What it shows | Used in |
+|------|---------------|---------|
+| `hero.jpg` | The finished frame on the wall, showing a photo | Top of `README.md` |
+| `dither-closeup.jpg` | Macro of the panel — the 6-color dither pattern | Gallery |
+| `portal-upload.png` | Portal Upload tab, per-file progress | Captive-portal section |
+| `portal-manage.png` | Portal Manage tab, thumbnails + multi-select | Captive-portal section |
+| `portal-settings.png` | Portal Settings tab, slideshow + dither style | Captive-portal section |
 
-| File | What to shoot |
-|------|---------------|
-| `hero.jpg` | The finished frame, displaying a photo, nicely lit — this is the first thing visitors see |
-| `frame-front.jpg` | Front view of the frame |
-| `portal-upload.png` | Phone screenshot of the portal's Upload tab (crop editor open looks great) |
-| `portal-manage.png` | Phone screenshot of the Manage tab with several photos |
-| `dither-closeup.jpg` | Macro/close-up of the panel showing the 6-color dither pattern |
+## Shooting notes
 
-Tips: shoot the frame in daylight (e-paper looks best lit from the front),
-and crop phone screenshots to just the browser content. Until these files
-exist, the README shows broken-image placeholders — GitHub renders the rest
-fine.
+The panel is behind glass, so the two things that ruin a shot are **glare** and
+**underexposure**. Shoot in daylight near a window rather than under a lamp, and
+stand slightly off-axis so the glass doesn't mirror you or the light source.
+
+Correcting exposure, white balance, and crop afterwards is fine and expected —
+phone cameras consistently underexpose a dark panel on a white wall. What is
+*not* fine is generative "enhancement": it smooths away the dither texture and
+renders colors the panel physically cannot produce, which misrepresents the
+hardware. The dither pattern is the point — keep it.
+
+Phone screenshots are downscaled to 780 px wide and palette-quantized to keep
+the repo small while staying crisp at README display size.
