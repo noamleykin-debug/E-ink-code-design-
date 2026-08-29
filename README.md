@@ -84,9 +84,10 @@ The phone uploads photos already sized to the panel's native 800×480, so the fi
 
 Waking with the Wi-Fi pad starts an open access point with wildcard DNS and the OS-detection probe routes (`/generate_204`, `/hotspot-detect.html`, `/connecttest.txt`), so phones auto-open the interface the moment they join. The single-page app (vanilla JS, zero dependencies, fully inlined because the portal has no internet) offers three tabs:
 
+![The three portal tabs: Upload with per-file progress, Manage with thumbnails and multi-select, Settings with slideshow interval and dither style](docs/images/portal-tabs.png)
+
 | Upload | Manage | Settings |
 |--------|--------|----------|
-| <img src="docs/images/portal-upload.png" alt="Upload tab, with per-file progress" width="260"> | <img src="docs/images/portal-manage.png" alt="Manage tab, thumbnails and multi-select" width="260"> | <img src="docs/images/portal-settings.png" alt="Settings tab, slideshow and dither style" width="260"> |
 | Pick photos, adjust each crop, watch per-file progress | Thumbnails, multi-select delete, reorder, "show this one" | Slideshow on/off + interval, and the dither style |
 
 Everything heavy happens in the browser: cropping, downscaling to 800×480, JPEG encoding. The ESP only ever receives display-ready files. Thumbnails load two at a time with client-side caching, since a browser's default six-plus parallel connections would starve the little SoC's flash filesystem.
