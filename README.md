@@ -86,7 +86,8 @@ Waking with the Wi-Fi pad starts an open access point with wildcard DNS and the 
 
 | Upload | Manage | Settings |
 |--------|--------|----------|
-| Pick photos, adjust each crop, watch per-file progress | Thumbnails, multi-select delete, reorder, "show this one" | Slideshow on/off + interval |
+| <img src="docs/images/portal-upload.png" alt="Upload tab, with per-file progress" width="260"> | <img src="docs/images/portal-manage.png" alt="Manage tab, thumbnails and multi-select" width="260"> | <img src="docs/images/portal-settings.png" alt="Settings tab, slideshow and dither style" width="260"> |
+| Pick photos, adjust each crop, watch per-file progress | Thumbnails, multi-select delete, reorder, "show this one" | Slideshow on/off + interval, and the dither style |
 
 Everything heavy happens in the browser: cropping, downscaling to 800×480, JPEG encoding. The ESP only ever receives display-ready files. Thumbnails load two at a time with client-side caching, since a browser's default six-plus parallel connections would starve the little SoC's flash filesystem.
 
@@ -149,12 +150,14 @@ CI compiles every pull request (see [`.github/workflows`](.github/workflows)).
 
 ## Gallery
 
-| | |
-|---|---|
-| ![Frame front](docs/images/frame-front.jpg) | ![Portal upload tab](docs/images/portal-upload.png) |
-| *The frame* | *Captive portal, upload & crop* |
-| ![Manage tab](docs/images/portal-manage.png) | ![Dither detail](docs/images/dither-closeup.jpg) |
-| *Playlist management* | *6-color dither up close* |
+Up close, the six inks give themselves away. Every shade of blue in that sky is a
+woven pattern of black, white, blue and yellow dots — the panel has no greys, no
+gradients and no intermediate tones, so the illusion is built entirely out of
+error diffusion. Step back a foot and it reads as a painting again.
+
+<p align="center">
+  <img src="docs/images/dither-closeup.jpg" alt="Close-up of the 6-color dither pattern on the panel" width="85%">
+</p>
 
 ## Credits
 
