@@ -1,7 +1,7 @@
 # 🖼️ E-Ink Photo Frame
 
 [![Build](https://github.com/noamleykin-debug/E-ink-code-design-/actions/workflows/build.yml/badge.svg)](https://github.com/noamleykin-debug/E-ink-code-design-/actions/workflows/build.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: MIT + Commons Clause](https://img.shields.io/badge/License-MIT%20%2B%20Commons%20Clause-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-ESP32--S3-blue.svg)](https://www.espressif.com/en/products/socs/esp32-s3)
 
 **A battery-powered, 6-color e-paper photo frame you control from your phone: no app, no cloud, no account.**
@@ -166,4 +166,4 @@ error diffusion. Step back a foot and it reads as a painting again.
 
 ## License
 
-Released under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE), with the [Commons Clause](https://commonsclause.com/) applied: you're free to use, copy, modify, and share this software (including commercially in the sense of using it in your own projects) — the only thing the Commons Clause prohibits is selling the software itself, or a product/service whose value derives substantially from it.
