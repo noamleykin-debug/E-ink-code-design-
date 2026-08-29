@@ -1,7 +1,7 @@
 # 🖼️ E-Ink Photo Frame
 
 [![Build](https://github.com/noamleykin-debug/E-ink-code-design-/actions/workflows/build.yml/badge.svg)](https://github.com/noamleykin-debug/E-ink-code-design-/actions/workflows/build.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-ESP32--S3-blue.svg)](https://www.espressif.com/en/products/socs/esp32-s3)
 
 **A battery-powered, 6-color e-paper photo frame you control from your phone: no app, no cloud, no account.**
@@ -166,4 +166,17 @@ error diffusion. Step back a foot and it reads as a painting again.
 
 ## License
 
-Released under the [MIT License](LICENSE).
+Released under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+**In plain English:** use it, modify it, build one, share your changes, write
+about it, teach with it. Personal projects, hobby builds, study, research,
+schools, nonprofits and public institutions are all covered.
+
+**What is not granted:** commercial use. You may not sell this firmware, ship it
+inside a product, or run it as part of a paid service without a separate
+license. If a company wants to do any of that, please
+[get in touch](https://github.com/noamleykin-debug) first.
+
+Third-party libraries the build pulls in (GxEPD2, Adafruit GFX, TJpg_Decoder,
+ESPAsyncWebServer, ArduinoJson, and the ESP32 Arduino core) keep their own
+licenses; this repository's terms cover only the code written for this project.
